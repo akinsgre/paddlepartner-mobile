@@ -92,33 +92,35 @@ export const waterBodyService = {
       )
     }
 
-    // Add shared water bodies
-    waterBodies.forEach(wb => {
+    // Backend returns flat structure, not nested SharedWaterBody objects
+    // Convert backend response to WaterBodySearchResult format
+    waterBodies.forEach((wb: any) => {
       results.push({
-        type: 'shared',
-        id: wb._id,
-        name: wb.name,
-        sharedWaterBody: wb,
-        distance: this.calculateDistance(latitude, longitude, wb.location.coordinates[1], wb.location.coordinates[0])
+        type: wb.section ? 'section' : 'shared',
+        id: wb.sharedWaterBodySectionId || wb.sharedWaterBodyId || wb._id,
+        name: wb.section ? `${wb.name} - ${wb.section}` : wb.name,
+        sharedWaterBody: {
+          _id: wb.sharedWaterBodyId || wb._id,
+          name: wb.name,
+          location: { type: 'Point', coordinates: [0, 0] }
+        },
+        section: wb.section ? {
+          _id: wb.sharedWaterBodySectionId,
+          sharedWaterBody: wb.sharedWaterBodyId || wb._id,
+          sectionName: wb.section,
+          location: { type: 'Point', coordinates: [0, 0] }
+        } : undefined,
+        distance: wb.distance // Backend may provide distance
       })
-
-      // Add sections if they exist
-      if (wb.sections && wb.sections.length > 0) {
-        wb.sections.forEach(section => {
-          results.push({
-            type: 'section',
-            id: section._id,
-            name: `${wb.name} - ${section.sectionName}`,
-            sharedWaterBody: wb,
-            section: section,
-            distance: this.calculateDistance(latitude, longitude, section.location.coordinates[1], section.location.coordinates[0])
-          })
-        })
-      }
     })
 
-    // Sort by distance (closest first)
-    results.sort((a, b) => (a.distance || 0) - (b.distance || 0))
+    // Sort by distance if available (closest first)
+    results.sort((a, b) => {
+      if (a.distance !== undefined && b.distance !== undefined) {
+        return a.distance - b.distance
+      }
+      return 0
+    })
 
     return results
   },
