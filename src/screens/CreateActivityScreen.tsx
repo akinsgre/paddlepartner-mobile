@@ -39,6 +39,17 @@ export default function CreateActivityScreen({ onActivityCreated, onCancel }: Cr
 
   const getCurrentLocation = async () => {
     try {
+      // FOR TESTING: Use fake coordinates in development mode
+      if (__DEV__) {
+        console.log('🧪 Using test coordinates for development');
+        setLocation({
+          latitude: 35.886272,
+          longitude: -82.82698
+        });
+        setLoadingLocation(false);
+        return;
+      }
+
       const { status } = await Location.requestForegroundPermissionsAsync();
       
       if (status !== 'granted') {
@@ -106,18 +117,29 @@ export default function CreateActivityScreen({ onActivityCreated, onCancel }: Cr
       return;
     }
 
+    console.log('🔍 Searching water bodies at:', location.latitude, location.longitude);
+    
     try {
       const results = await waterBodyService.searchCombined(
         location.latitude,
         location.longitude,
         searchQuery || undefined
       );
+      console.log('✅ Water body search results:', results.length, 'found');
+      if (results.length > 0) {
+        console.log('First result:', results[0]);
+      }
       setWaterBodies(results);
     } catch (error: any) {
-      console.error('Error searching water bodies:', error);
+      console.error('❌ Error searching water bodies:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
       Alert.alert(
         'Search Error',
-        error.response?.data?.error || 'Failed to search for water bodies. Please try again.',
+        error.response?.data?.error || error.message || 'Failed to search for water bodies. Please try again.',
         [
           { text: 'Cancel', onPress: onCancel },
           { text: 'Retry', onPress: searchWaterBodies }

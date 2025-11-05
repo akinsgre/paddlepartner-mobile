@@ -79,22 +79,27 @@ export const waterBodyService = {
   ): Promise<WaterBodySearchResult[]> {
     const results: WaterBodySearchResult[] = []
 
+    console.log('🌊 searchCombined called:', { latitude, longitude, query });
+
     // Get nearby water bodies
     const nearby = await this.searchNearby(latitude, longitude, 50)
+    console.log('📍 searchNearby returned:', nearby.length, 'results');
     
     // Filter by search query if provided
     let waterBodies = nearby
     if (query) {
       const queryLower = query.toLowerCase()
-      waterBodies = nearby.filter(wb => 
-        wb.name.toLowerCase().includes(queryLower) ||
-        wb.alternateNames?.some(alt => alt.toLowerCase().includes(queryLower))
+      waterBodies = nearby.filter((wb: any) => 
+        wb.name?.toLowerCase().includes(queryLower) ||
+        wb.alternateNames?.some((alt: string) => alt.toLowerCase().includes(queryLower))
       )
+      console.log('🔎 After filtering by query:', waterBodies.length, 'results');
     }
 
     // Backend returns flat structure, not nested SharedWaterBody objects
     // Convert backend response to WaterBodySearchResult format
     waterBodies.forEach((wb: any) => {
+      console.log('🏞️  Processing water body:', wb.name, 'source:', wb.source);
       results.push({
         type: wb.section ? 'section' : 'shared',
         id: wb.sharedWaterBodySectionId || wb.sharedWaterBodyId || wb._id,
@@ -122,6 +127,7 @@ export const waterBodyService = {
       return 0
     })
 
+    console.log('✨ searchCombined returning:', results.length, 'results');
     return results
   },
 
