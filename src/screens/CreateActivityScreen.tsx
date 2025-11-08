@@ -39,17 +39,6 @@ export default function CreateActivityScreen({ onActivityCreated, onCancel }: Cr
 
   const getCurrentLocation = async () => {
     try {
-      // FOR TESTING: Use fake coordinates in development mode
-      if (__DEV__) {
-        console.log('🧪 Using test coordinates for development');
-        setLocation({
-          latitude: 35.886272,
-          longitude: -82.82698
-        });
-        setLoadingLocation(false);
-        return;
-      }
-
       const { status } = await Location.requestForegroundPermissionsAsync();
       
       if (status !== 'granted') {
@@ -81,7 +70,7 @@ export default function CreateActivityScreen({ onActivityCreated, onCancel }: Cr
         setLoadingLocation(false);
         return;
       }
-
+      console.log('📍 Current location:', currentLocation.coords.latitude, currentLocation.coords.longitude) ;
       setLocation({
         latitude: currentLocation.coords.latitude,
         longitude: currentLocation.coords.longitude,
@@ -106,7 +95,16 @@ export default function CreateActivityScreen({ onActivityCreated, onCancel }: Cr
       console.warn('Cannot search water bodies: location not available');
       return;
     }
-
+      // FOR TESTING: Use fake coordinates in development mode
+    //   if (__DEV__) {
+    //     console.log('🧪 Using test coordinates for development');
+    //     setLocation({
+    //       latitude: 35.886272,
+    //       longitude: -82.82698
+    //     });
+    //     setLoadingLocation(false);
+    //     return;
+    //   }
     if (!location.latitude || !location.longitude) {
       console.warn('Cannot search water bodies: invalid coordinates', location);
       Alert.alert(
