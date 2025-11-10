@@ -62,6 +62,7 @@ export const waterBodyService = {
    * Search water bodies by name
    */
   async searchByName(query: string): Promise<SharedWaterBody[]> {
+    console.log('🔍 searchByName called with query:', query);
     const response = await api.get('/shared-water-bodies/search', {
       params: { q: query }
     })
@@ -77,29 +78,24 @@ export const waterBodyService = {
     longitude: number,
     query?: string
   ): Promise<WaterBodySearchResult[]> {
-    const results: WaterBodySearchResult[] = []
-
+    const results: WaterBodySearchResult[] = [];
     console.log('🌊 searchCombined called:', { latitude, longitude, query });
 
-    // Get nearby water bodies
-    const nearby = await this.searchNearby(latitude, longitude, 50)
-    console.log('📍 searchNearby returned:', nearby.length, 'results');
-    
-    // Filter by search query if provided
-    let waterBodies = nearby
+    let waterBodies: any[] = [];
     if (query) {
-      const queryLower = query.toLowerCase()
-      waterBodies = nearby.filter((wb: any) => 
-        wb.name?.toLowerCase().includes(queryLower) ||
-        wb.alternateNames?.some((alt: string) => alt.toLowerCase().includes(queryLower))
-      )
-      console.log('🔎 After filtering by query:', waterBodies.length, 'results');
+      // If query is provided, search by name only and ignore location
+      console.log('🔍 Searching by name due to query:', query);
+      waterBodies = await this.searchByName(query);
+      console.log('🔍 searchByName returned:', waterBodies.length, 'results');
+    } else {
+      // Otherwise, search by location
+      waterBodies = await this.searchNearby(latitude, longitude, 50);
+      console.log('� searchNearby returned:', waterBodies.length, 'results');
     }
 
-    // Backend returns flat structure, not nested SharedWaterBody objects
     // Convert backend response to WaterBodySearchResult format
     waterBodies.forEach((wb: any) => {
-      console.log('🏞️  Processing water body:', wb.name, 'source:', wb.source);
+      console.log('wb', wb);
       results.push({
         type: wb.section ? 'section' : 'shared',
         id: wb.sharedWaterBodySectionId || wb.sharedWaterBodyId || wb._id,
@@ -116,19 +112,19 @@ export const waterBodyService = {
           location: { type: 'Point', coordinates: [0, 0] }
         } : undefined,
         distance: wb.distance // Backend may provide distance
-      })
-    })
+      });
+    });
 
     // Sort by distance if available (closest first)
     results.sort((a, b) => {
       if (a.distance !== undefined && b.distance !== undefined) {
-        return a.distance - b.distance
+        return a.distance - b.distance;
       }
-      return 0
-    })
+      return 0;
+    });
 
     console.log('✨ searchCombined returning:', results.length, 'results');
-    return results
+    return results;
   },
 
   /**

@@ -55,7 +55,7 @@ export default function CreateActivityScreen({ onActivityCreated, onCancel }: Cr
       }
 
       const currentLocation = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
+        accuracy: Location.Accuracy.BestForNavigation,
       });
 
       if (!currentLocation?.coords?.latitude || !currentLocation?.coords?.longitude) {
@@ -199,14 +199,17 @@ export default function CreateActivityScreen({ onActivityCreated, onCancel }: Cr
 
   const renderWaterBodyItem = ({ item }: { item: WaterBodySearchResult }) => (
     <TouchableOpacity
-      style={[
+      style={[ 
         styles.waterBodyItem,
         selectedWaterBody?.id === item.id && styles.selectedWaterBodyItem,
       ]}
       onPress={() => setSelectedWaterBody(item)}
     >
       <View style={styles.waterBodyInfo}>
-        <Text style={styles.waterBodyName}>{item.name}</Text>
+        <Text style={styles.waterBodyName}>
+          {item.name}
+          
+        </Text>
         <Text style={styles.waterBodyType}>
           {item.type === 'section' ? 'Section' : 'Water Body'}
           {item.distance !== undefined && ` • ${waterBodyService.formatDistance(item.distance)}`}
@@ -272,7 +275,10 @@ export default function CreateActivityScreen({ onActivityCreated, onCancel }: Cr
         <FlatList
           data={waterBodies}
           renderItem={renderWaterBodyItem}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => {
+            console.log('KeyExtractor item:', item);
+            return `${item.id}${item.section?.sectionName}`;
+          }}
           style={styles.list}
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
