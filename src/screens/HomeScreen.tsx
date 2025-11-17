@@ -10,7 +10,11 @@ import {
 } from 'react-native';
 import { authService } from '../services';
 import CreateActivityScreen from './CreateActivityScreen';
+import CreateActivityConfirmScreen from './CreateActivityConfirmScreen';
 import type { User } from '@paddlepartner/shared';
+import type { WaterBodySearchResult } from '../services/waterBodyService';
+
+type CreateActivityStep = 'select' | 'confirm';
 
 interface HomeScreenProps {
   onLogout: () => void;
@@ -20,6 +24,9 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [showCreateActivity, setShowCreateActivity] = useState(false);
+  const [createActivityStep, setCreateActivityStep] = useState<CreateActivityStep>('select');
+  const [selectedWaterBody, setSelectedWaterBody] = useState<WaterBodySearchResult | null>(null);
+  const [selectedLocation, setSelectedLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
   useEffect(() => {
     loadUser();
@@ -52,6 +59,34 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
         },
       ]
     );
+  };
+
+  const handleContinueToConfirm = (
+    waterBody: WaterBodySearchResult,
+    location: { latitude: number; longitude: number }
+  ) => {
+    setSelectedWaterBody(waterBody);
+    setSelectedLocation(location);
+    setCreateActivityStep('confirm');
+  };
+
+  const handleBackToSelect = () => {
+    setCreateActivityStep('select');
+  };
+
+  const handleActivityCreated = () => {
+    setShowCreateActivity(false);
+    setCreateActivityStep('select');
+    setSelectedWaterBody(null);
+    setSelectedLocation(null);
+    Alert.alert('Success', 'Activity created! You can view it in the web app.');
+  };
+
+  const handleCancel = () => {
+    setShowCreateActivity(false);
+    setCreateActivityStep('select');
+    setSelectedWaterBody(null);
+    setSelectedLocation(null);
   };
 
   if (loading) {
@@ -109,15 +144,21 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
         visible={showCreateActivity}
         animationType="slide"
         presentationStyle="pageSheet"
-        onRequestClose={() => setShowCreateActivity(false)}
+        onRequestClose={handleCancel}
       >
-        <CreateActivityScreen
-          onActivityCreated={() => {
-            setShowCreateActivity(false);
-            Alert.alert('Success', 'Activity created! You can view it in the web app.');
-          }}
-          onCancel={() => setShowCreateActivity(false)}
-        />
+        {createActivityStep === 'select' ? (
+          <CreateActivityScreen
+            onContinue={handleContinueToConfirm}
+            onCancel={handleCancel}
+          />
+        ) : (
+          <CreateActivityConfirmScreen
+            selectedWaterBody={selectedWaterBody!}
+            location={selectedLocation!}
+            onBack={handleBackToSelect}
+            onActivityCreated={handleActivityCreated}
+          />
+        )}
       </Modal>
     </View>
   );

@@ -1,0 +1,359 @@
+import React, { useState } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+  TextInput,
+  Platform,
+  ScrollView,
+} from 'react-native';
+import { activityService } from '../services';
+import type { WaterBodySearchResult } from '../services/waterBodyService';
+
+interface CreateActivityConfirmScreenProps {
+  selectedWaterBody: WaterBodySearchResult;
+  location: { latitude: number; longitude: number };
+  onBack: () => void;
+  onActivityCreated: () => void;
+}
+
+export default function CreateActivityConfirmScreen({
+  selectedWaterBody,
+  location,
+  onBack,
+  onActivityCreated,
+}: CreateActivityConfirmScreenProps) {
+  const [loading, setLoading] = useState(false);
+  const [sectionName, setSectionName] = useState('');
+  const [waterLevel, setWaterLevel] = useState('');
+
+  const isOSMWaterBody = selectedWaterBody.id.startsWith('osm-');
+  const isSection = selectedWaterBody.type === 'section';
+
+  const handleSave = async () => {
+    try {
+      setLoading(true);
+
+      let sharedWaterBodyId: string;
+      let finalSectionName: string | undefined;
+
+      if (isOSMWaterBody) {
+        // For OSM water bodies, first check if it already exists, then create if needed
+        console.log('📋 Processing OSM water body...');
+        
+        // Extract OSM ID and type from the id string: "osm-way-123456"
+        const [, osmType, osmId] = selectedWaterBody.id.split('-');
+        
+        // Check if this OSM water body already exists
+        const checkResponse = await fetch(
+          `${process.env.EXPO_PUBLIC_API_URL}/api/activities/check-osm-match`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${await getAuthToken()}`,
+            },
+            body: JSON.stringify({
+              osmId,
+              name: selectedWaterBody.name,
+              type: osmType,
+              coordinates: [location.longitude, location.latitude],
+            }),
+          }
+        );
+
+        if (!checkResponse.ok) {
+          throw new Error('Failed to check OSM match');
+        }
+
+        const checkData = await checkResponse.json();
+
+        if (checkData.matched) {
+          // Water body already exists
+          console.log(`✅ OSM water body already exists: ${checkData.sharedWaterBody._id}`);
+          sharedWaterBodyId = checkData.sharedWaterBody._id;
+          finalSectionName = sectionName.trim() || undefined;
+        } else {
+          // Create new SharedWaterBody from OSM data
+          console.log('🆕 Creating new SharedWaterBody from OSM data...');
+          
+          const createResponse = await fetch(
+            `${process.env.EXPO_PUBLIC_API_URL}/api/shared-water-bodies`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${await getAuthToken()}`,
+              },
+              body: JSON.stringify({
+                name: selectedWaterBody.name,
+                type: osmType,
+                coordinates: [location.longitude, location.latitude],
+                section: sectionName.trim() || undefined,
+                osmData: {
+                  osmId,
+                  osmType,
+                },
+              }),
+            }
+          );
+
+          if (!createResponse.ok) {
+            throw new Error('Failed to create water body');
+          }
+
+          const createData = await createResponse.json();
+          sharedWaterBodyId = createData.sharedWaterBody._id;
+          finalSectionName = sectionName.trim() || undefined;
+          console.log(`✅ Created SharedWaterBody: ${sharedWaterBodyId}`);
+        }
+      } else {
+        // For SharedWaterBody (with or without section)
+        const waterBodyId = selectedWaterBody.sharedWaterBody?._id;
+        if (!waterBodyId) {
+          throw new Error('Invalid water body selection');
+        }
+        sharedWaterBodyId = waterBodyId;
+        
+        if (isSection && selectedWaterBody.section?.sectionName) {
+          finalSectionName = selectedWaterBody.section.sectionName;
+        }
+      }
+
+      // Now create the activity
+      const activityData: any = {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        sharedWaterBodyId,
+      };
+
+      if (finalSectionName) {
+        activityData.sectionName = finalSectionName;
+      }
+
+      if (waterLevel.trim()) {
+        activityData.waterLevel = waterLevel.trim();
+      }
+
+      console.log('📤 Creating manual activity with data:', activityData);
+
+      await activityService.createManualActivity(activityData);
+
+      Alert.alert(
+        'Success',
+        'Activity created successfully!',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              // Call the callback to close the modal and show success
+              onActivityCreated();
+            }
+          }
+        ]
+      );
+    } catch (error: any) {
+      console.error('Error creating activity:', error);
+      Alert.alert(
+        'Error',
+        error.response?.data?.error || error.message || 'Failed to create activity'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Helper function to get auth token
+  const getAuthToken = async () => {
+    // This should match however your mobile app stores the auth token
+    // You may need to import AsyncStorage or use your auth service
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+    const token = await AsyncStorage.getItem('authToken');
+    return token;
+  };
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={onBack} style={styles.backButton}>
+          <Text style={styles.backButtonText}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Confirm Activity</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
+      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+        <Text style={styles.sectionTitle}>Activity Details</Text>
+        
+        {/* Water Body Name */}
+        <View style={styles.fieldContainer}>
+          <Text style={styles.label}>Water Body</Text>
+          <View style={styles.readOnlyField}>
+            <Text style={styles.readOnlyText}>{selectedWaterBody.name}</Text>
+          </View>
+          {isOSMWaterBody && (
+            <Text style={styles.helpText}>From OpenStreetMap - will be added to shared database</Text>
+          )}
+        </View>
+
+        {/* Section */}
+        {isSection && !isOSMWaterBody && (
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Section</Text>
+            <View style={styles.readOnlyField}>
+              <Text style={styles.readOnlyText}>{selectedWaterBody.section?.sectionName}</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Section Input for OSM */}
+        {isOSMWaterBody && (
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Section (Optional)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g., Upper Section, Lower Run"
+              value={sectionName}
+              onChangeText={setSectionName}
+              autoCapitalize="words"
+              autoCorrect={false}
+            />
+            <Text style={styles.helpText}>Add a section name if applicable</Text>
+          </View>
+        )}
+
+        {/* Water Level */}
+        <View style={styles.fieldContainer}>
+          <Text style={styles.label}>Water Level (Optional)</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g., 2.5 feet, Medium, High"
+            value={waterLevel}
+            onChangeText={setWaterLevel}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <Text style={styles.helpText}>Record the water conditions</Text>
+        </View>
+
+
+      </ScrollView>
+
+      <View style={styles.footer}>
+        <TouchableOpacity
+          style={[styles.saveButton, loading && styles.saveButtonDisabled]}
+          onPress={handleSave}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#ffffff" />
+          ) : (
+            <Text style={styles.saveButtonText}>Save Activity</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 60 : 20,
+    paddingBottom: 16,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  backButton: {
+    padding: 8,
+  },
+  backButtonText: {
+    fontSize: 16,
+    color: '#0ea5e9',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  headerSpacer: {
+    width: 60,
+  },
+  content: {
+    flex: 1,
+  },
+  contentContainer: {
+    padding: 16,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 20,
+  },
+  fieldContainer: {
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  input: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+  },
+  readOnlyField: {
+    backgroundColor: '#f9fafb',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    padding: 12,
+  },
+  readOnlyText: {
+    fontSize: 16,
+    color: '#6b7280',
+  },
+  helpText: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  footer: {
+    padding: 16,
+    backgroundColor: '#ffffff',
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  saveButton: {
+    backgroundColor: '#0ea5e9',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  saveButtonDisabled: {
+    backgroundColor: '#9ca3af',
+  },
+  saveButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+});
