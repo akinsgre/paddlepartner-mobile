@@ -11,21 +11,25 @@ import {
   Platform,
 } from 'react-native';
 import * as Location from 'expo-location';
-import { activityService, waterBodyService } from '../services';
-import type { WaterBodySearchResult } from '../services/waterBodyService';
+import { waterBodyService } from '../services';
+import type { WaterBodySearchResult, OSMStatus } from '../services/waterBodyService';
 
 interface CreateActivityScreenProps {
-  onActivityCreated: () => void;
+  onContinue: (
+    waterBody: WaterBodySearchResult,
+    location: { latitude: number; longitude: number }
+  ) => void;
   onCancel: () => void;
 }
 
-export default function CreateActivityScreen({ onActivityCreated, onCancel }: CreateActivityScreenProps) {
-  const [loading, setLoading] = useState(false);
+export default function CreateActivityScreen({ onContinue, onCancel }: CreateActivityScreenProps) {
   const [loadingLocation, setLoadingLocation] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [waterBodies, setWaterBodies] = useState<WaterBodySearchResult[]>([]);
   const [selectedWaterBody, setSelectedWaterBody] = useState<WaterBodySearchResult | null>(null);
+  const [osmStatus, setOsmStatus] = useState<OSMStatus | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     getCurrentLocation();
@@ -118,16 +122,17 @@ export default function CreateActivityScreen({ onActivityCreated, onCancel }: Cr
     console.log('🔍 Searching water bodies at:', location.latitude, location.longitude);
     
     try {
-      const results = await waterBodyService.searchCombined(
+      const response = await waterBodyService.searchCombined(
         location.latitude,
         location.longitude,
         searchQuery || undefined
       );
-      console.log('✅ Water body search results:', results.length, 'found');
-      if (results.length > 0) {
-        console.log('First result:', results[0]);
+      console.log('✅ Water body search results:', response.results.length, 'found');
+      if (response.results.length > 0) {
+        console.log('First result:', response.results[0]);
       }
-      setWaterBodies(results);
+      setWaterBodies(response.results);
+      setOsmStatus(response.osmStatus || null);
     } catch (error: any) {
       console.error('❌ Error searching water bodies:', error);
       console.error('Error details:', {
@@ -146,7 +151,7 @@ export default function CreateActivityScreen({ onActivityCreated, onCancel }: Cr
     }
   };
 
-  const handleCreateActivity = async () => {
+  const handleContinue = () => {
     if (!location) {
       Alert.alert('Error', 'Location is required');
       return;
@@ -161,40 +166,15 @@ export default function CreateActivityScreen({ onActivityCreated, onCancel }: Cr
       return;
     }
 
-    try {
-      setLoading(true);
+    // Call the onContinue callback to navigate to confirmation
+    onContinue(selectedWaterBody, location);
+  };
 
-      const data: any = {
-        latitude: location.latitude,
-        longitude: location.longitude,
-      };
-
-      // Add water body or section based on type
-      if (selectedWaterBody.type === 'section' && selectedWaterBody.section) {
-        data.sharedWaterBodySectionId = selectedWaterBody.section._id;
-        if (selectedWaterBody.sharedWaterBody) {
-          data.sharedWaterBodyId = selectedWaterBody.sharedWaterBody._id;
-        }
-      } else if (selectedWaterBody.type === 'shared' && selectedWaterBody.sharedWaterBody) {
-        data.sharedWaterBodyId = selectedWaterBody.sharedWaterBody._id;
-      }
-
-      await activityService.createManualActivity(data);
-
-      Alert.alert(
-        'Success',
-        'Activity created successfully!',
-        [{ text: 'OK', onPress: onActivityCreated }]
-      );
-    } catch (error: any) {
-      console.error('Error creating activity:', error);
-      Alert.alert(
-        'Error',
-        error.response?.data?.error || 'Failed to create activity'
-      );
-    } finally {
-      setLoading(false);
-    }
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    setSelectedWaterBody(null); // Clear selection on refresh
+    await searchWaterBodies();
+    setRefreshing(false);
   };
 
   const renderWaterBodyItem = ({ item }: { item: WaterBodySearchResult }) => (
@@ -250,7 +230,12 @@ export default function CreateActivityScreen({ onActivityCreated, onCancel }: Cr
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={onCancel} style={styles.cancelButton}>
+        <TouchableOpacity 
+          onPress={onCancel} 
+          style={styles.cancelButton}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          activeOpacity={0.6}
+        >
           <Text style={styles.cancelButtonText}>Cancel</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Create Activity</Text>
@@ -271,14 +256,40 @@ export default function CreateActivityScreen({ onActivityCreated, onCancel }: Cr
           autoCapitalize="none"
           autoCorrect={false}
         />
+        <Text style={styles.helpText}>
+          {searchQuery ? 'Searching shared water bodies only' : 'Showing nearby water bodies'}
+        </Text>
+
+        {/* OSM Status Banner */}
+        {osmStatus && !osmStatus.success && (
+          <View style={styles.osmErrorBanner}>
+            <View style={styles.osmErrorContent}>
+              <Text style={styles.osmErrorIcon}>⚠️</Text>
+              <View style={styles.osmErrorTextContainer}>
+                <Text style={styles.osmErrorTitle}>OpenStreetMap Unavailable</Text>
+                <Text style={styles.osmErrorMessage}>
+                  {osmStatus.error || 'Some water bodies may not be shown'}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.refreshButton}
+              onPress={handleRefresh}
+              disabled={refreshing}
+            >
+              {refreshing ? (
+                <ActivityIndicator size="small" color="#0ea5e9" />
+              ) : (
+                <Text style={styles.refreshButtonText}>Retry</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
 
         <FlatList
           data={waterBodies}
           renderItem={renderWaterBodyItem}
-          keyExtractor={(item) => {
-            console.log('KeyExtractor item:', item);
-            return `${item.id}${item.section?.sectionName}`;
-          }}
+          keyExtractor={(item) => item.id}
           style={styles.list}
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
@@ -292,17 +303,13 @@ export default function CreateActivityScreen({ onActivityCreated, onCancel }: Cr
 
         <TouchableOpacity
           style={[
-            styles.createButton,
-            (!selectedWaterBody || loading) && styles.createButtonDisabled,
+            styles.continueButton,
+            !selectedWaterBody && styles.continueButtonDisabled,
           ]}
-          onPress={handleCreateActivity}
-          disabled={!selectedWaterBody || loading}
+          onPress={handleContinue}
+          disabled={!selectedWaterBody}
         >
-          {loading ? (
-            <ActivityIndicator color="#ffffff" />
-          ) : (
-            <Text style={styles.createButtonText}>Add Activity</Text>
-          )}
+          <Text style={styles.continueButtonText}>Continue</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -327,10 +334,12 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     padding: 8,
+    minWidth: 60,
   },
   cancelButtonText: {
     fontSize: 16,
     color: '#0ea5e9',
+    fontWeight: '600',
   },
   headerTitle: {
     fontSize: 18,
@@ -362,7 +371,13 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
+    marginBottom: 8,
+  },
+  helpText: {
+    fontSize: 12,
+    color: '#6b7280',
     marginBottom: 16,
+    fontStyle: 'italic',
   },
   list: {
     flex: 1,
@@ -419,17 +434,17 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     textAlign: 'center',
   },
-  createButton: {
+  continueButton: {
     backgroundColor: '#0ea5e9',
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 16,
   },
-  createButtonDisabled: {
+  continueButtonDisabled: {
     backgroundColor: '#9ca3af',
   },
-  createButtonText: {
+  continueButtonText: {
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
@@ -464,6 +479,54 @@ const styles = StyleSheet.create({
   retryButtonText: {
     color: '#ffffff',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  osmErrorBanner: {
+    backgroundColor: '#fef3c7',
+    borderWidth: 1,
+    borderColor: '#f59e0b',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  osmErrorContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  osmErrorIcon: {
+    fontSize: 20,
+    marginRight: 8,
+  },
+  osmErrorTextContainer: {
+    flex: 1,
+  },
+  osmErrorTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#92400e',
+    marginBottom: 2,
+  },
+  osmErrorMessage: {
+    fontSize: 12,
+    color: '#92400e',
+  },
+  refreshButton: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#f59e0b',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  refreshButtonText: {
+    color: '#f59e0b',
+    fontSize: 14,
     fontWeight: '600',
   },
 });
