@@ -6,7 +6,10 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "dependencies": {
     "@paddlepartner/shared": "file:../paddlepartner-shared",
@@ -19,6 +22,7 @@
     "expo-auth-session": "~7.0.8",
     "expo-crypto": "~15.0.7",
     "expo-dev-client": "~6.0.17",
+    "expo-image-picker": "~17.0.8",
     "expo-location": "~19.0.7",
     "expo-status-bar": "~3.0.8",
     "expo-web-browser": "~15.0.9",
@@ -28,7 +32,15 @@
     "react-native-screens": "~4.16.0"
   },
   "devDependencies": {
+    "@react-native/babel-preset": "^0.82.1",
+    "@react-native/metro-config": "^0.82.1",
+    "@testing-library/react-native": "^12.4.3",
+    "@types/jest": "^29.5.11",
     "@types/react": "~19.1.0",
+    "babel-jest": "^29.7.0",
+    "jest": "^29.7.0",
+    "jest-environment-node": "^29.7.0",
+    "react-test-renderer": "19.1.0",
     "typescript": "~5.9.2"
   },
   "private": true
