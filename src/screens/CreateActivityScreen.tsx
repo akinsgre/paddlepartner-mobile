@@ -245,7 +245,7 @@ export default function CreateActivityScreen({ onContinue, onCancel }: CreateAct
       <View style={styles.content}>
         <Text style={styles.sectionTitle}>Select Water Body</Text>
         <Text style={styles.sectionSubtitle}>
-          Choose the body of water where you paddled
+          Choose the body of water where you paddled. “Section" = logged by a PaddlePartner user.
         </Text>
 
         <TextInput

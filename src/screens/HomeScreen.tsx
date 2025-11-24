@@ -7,11 +7,12 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  Image,
 } from 'react-native';
-import { authService } from '../services';
+import { authService, activityService } from '../services';
 import CreateActivityScreen from './CreateActivityScreen';
 import CreateActivityConfirmScreen from './CreateActivityConfirmScreen';
-import type { User } from '@paddlepartner/shared';
+import type { User, Activity } from '@paddlepartner/shared';
 import type { WaterBodySearchResult } from '../services/waterBodyService';
 
 type CreateActivityStep = 'select' | 'confirm';
@@ -23,13 +24,16 @@ interface HomeScreenProps {
 export default function HomeScreen({ onLogout }: HomeScreenProps) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [showCreateActivity, setShowCreateActivity] = useState(false);
   const [createActivityStep, setCreateActivityStep] = useState<CreateActivityStep>('select');
   const [selectedWaterBody, setSelectedWaterBody] = useState<WaterBodySearchResult | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   useEffect(() => {
     loadUser();
+    loadActivities();
   }, []);
 
   const loadUser = async () => {
@@ -43,7 +47,22 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
     }
   };
 
+  const loadActivities = async () => {
+    try {
+      const response = await activityService.getActivities({
+        page: 1,
+        limit: 5,
+        sort: '-startDate'
+      });
+      // API returns activities, not docs
+      setActivities((response as any).activities || []);
+    } catch (error) {
+      console.error('Failed to load activities:', error);
+    }
+  };
+
   const handleLogout = async () => {
+    setShowProfileMenu(false);
     Alert.alert(
       'Logout',
       'Are you sure you want to logout?',
@@ -79,6 +98,7 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
     setCreateActivityStep('select');
     setSelectedWaterBody(null);
     setSelectedLocation(null);
+    loadActivities(); // Refresh activities list
     Alert.alert('Success', 'Activity created! You can view it in the web app.');
   };
 
@@ -103,6 +123,31 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
         <Text style={styles.logo}>🏄‍♂️</Text>
         <Text style={styles.title}>Paddle Partner</Text>
         <Text style={styles.subtitle}>Mobile App</Text>
+        
+        {/* Profile Button */}
+        {user && user.picture && (
+          <TouchableOpacity
+            style={styles.profileButton}
+            onPress={() => setShowProfileMenu(!showProfileMenu)}
+          >
+            <Image
+              source={{ uri: user.picture }}
+              style={styles.profileImage}
+            />
+          </TouchableOpacity>
+        )}
+        
+        {/* Profile Dropdown Menu */}
+        {showProfileMenu && (
+          <View style={styles.profileMenu}>
+            <TouchableOpacity
+              style={styles.profileMenuItem}
+              onPress={handleLogout}
+            >
+              <Text style={styles.profileMenuText}>Logout</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       <View style={styles.content}>
@@ -124,20 +169,38 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
           <Text style={styles.createActivityText}>Create Activity</Text>
         </TouchableOpacity>
 
-        <View style={styles.messageCard}>
-          <Text style={styles.messageTitle}>Coming Soon!</Text>
-          <Text style={styles.messageText}>
-            More features in development:
-          </Text>
-          <Text style={styles.featureText}>• View activity list</Text>
-          <Text style={styles.featureText}>• Activity details and editing</Text>
-          <Text style={styles.featureText}>• Strava integration</Text>
-          <Text style={styles.featureText}>• Activity statistics</Text>
+        <View style={styles.activitiesCard}>
+          <Text style={styles.activitiesTitle}>Recent Activities</Text>
+          {activities.length === 0 ? (
+            <Text style={styles.noActivitiesText}>
+              No activities yet. Create your first one!
+            </Text>
+          ) : (
+            activities.map((activity) => {
+              const date = new Date(activity.startDate).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+              });
+              const waterBodyName = activity.sharedWaterBody?.name || 'Unknown Location';
+              const sectionName = activity.sharedWaterBody?.section?.name;
+              const location = sectionName ? `${waterBodyName} - ${sectionName}` : waterBodyName;
+              
+              return (
+                <View key={activity._id} style={styles.activityItem}>
+                  <Text style={styles.activityDate}>{date}</Text>
+                  <View style={styles.activityDetails}>
+                    <Text style={styles.activityName} numberOfLines={1}>
+                      {activity.name}
+                    </Text>
+                    <Text style={styles.activityLocation} numberOfLines={1}>
+                      {location}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })
+          )}
         </View>
-
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutButtonText}>Logout</Text>
-        </TouchableOpacity>
       </View>
 
       <Modal
@@ -180,6 +243,56 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: 30,
     alignItems: 'center',
+    position: 'relative',
+  },
+  profileButton: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  profileImage: {
+    width: '100%',
+    height: '100%',
+  },
+  profileMenu: {
+    position: 'absolute',
+    top: 110,
+    right: 20,
+    backgroundColor: '#ffffff',
+    borderRadius: 8,
+    minWidth: 120,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  profileMenuItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  profileMenuText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#ef4444',
+    textAlign: 'center',
   },
   logo: {
     fontSize: 60,
@@ -227,6 +340,59 @@ const styles = StyleSheet.create({
   },
   userEmail: {
     fontSize: 14,
+    color: '#64748b',
+  },
+  activitiesCard: {
+    backgroundColor: '#ffffff',
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  activitiesTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#0c4a6e',
+    marginBottom: 16,
+  },
+  noActivitiesText: {
+    fontSize: 14,
+    color: '#94a3b8',
+    textAlign: 'center',
+    paddingVertical: 20,
+  },
+  activityItem: {
+    flexDirection: 'row',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  activityDate: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748b',
+    width: 50,
+    paddingTop: 2,
+  },
+  activityDetails: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  activityName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0c4a6e',
+    marginBottom: 2,
+  },
+  activityLocation: {
+    fontSize: 13,
     color: '#64748b',
   },
   messageCard: {
@@ -286,27 +452,6 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   createActivityText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  logoutButton: {
-    backgroundColor: '#ef4444',
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 'auto',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  logoutButtonText: {
     fontSize: 18,
     fontWeight: '600',
     color: '#ffffff',

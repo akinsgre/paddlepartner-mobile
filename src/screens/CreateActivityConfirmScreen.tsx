@@ -9,7 +9,9 @@ import {
   TextInput,
   Platform,
   ScrollView,
+  Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { activityService } from '../services';
 import type { WaterBodySearchResult } from '../services/waterBodyService';
 
@@ -27,11 +29,79 @@ export default function CreateActivityConfirmScreen({
   onActivityCreated,
 }: CreateActivityConfirmScreenProps) {
   const [loading, setLoading] = useState(false);
+  const [activityName, setActivityName] = useState(`Paddled ${selectedWaterBody.name}`);
   const [sectionName, setSectionName] = useState('');
   const [waterLevel, setWaterLevel] = useState('');
+  const [notes, setNotes] = useState('');
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
 
   const isOSMWaterBody = selectedWaterBody.id.startsWith('osm-');
   const isSection = selectedWaterBody.type === 'section';
+
+  const handlePickImage = async () => {
+    // Request permission
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Please allow access to your photo library to add images.');
+      return;
+    }
+
+    // Show action sheet to choose between camera and gallery
+    Alert.alert(
+      'Add Photo',
+      'Choose a photo source',
+      [
+        {
+          text: 'Take Photo',
+          onPress: handleTakePhoto,
+        },
+        {
+          text: 'Choose from Gallery',
+          onPress: handleChooseFromGallery,
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
+  const handleTakePhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Please allow access to your camera to take photos.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.6, // Optimized for smaller file size while maintaining good quality
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setPhotoUri(result.assets[0].uri);
+    }
+  };
+
+  const handleChooseFromGallery = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.6, // Optimized for smaller file size while maintaining good quality
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setPhotoUri(result.assets[0].uri);
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    setPhotoUri(null);
+  };
 
   const handleSave = async () => {
     try {
@@ -125,6 +195,7 @@ export default function CreateActivityConfirmScreen({
 
       // Now create the activity
       const activityData: any = {
+        name: activityName.trim(),
         latitude: location.latitude,
         longitude: location.longitude,
         sharedWaterBodyId,
@@ -136,6 +207,30 @@ export default function CreateActivityConfirmScreen({
 
       if (waterLevel.trim()) {
         activityData.waterLevel = waterLevel.trim();
+      }
+
+      if (notes.trim()) {
+        activityData.notes = notes.trim();
+      }
+
+      if (photoUri) {
+        // Convert photo URI to base64
+        console.log('📷 Converting photo to base64...');
+        const response = await fetch(photoUri);
+        const blob = await response.blob();
+        const reader = new FileReader();
+        
+        const base64Data = await new Promise<string>((resolve, reject) => {
+          reader.onloadend = () => {
+            const base64 = reader.result as string;
+            resolve(base64);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        
+        activityData.photoUri = base64Data;
+        console.log('✅ Photo converted to base64');
       }
 
       console.log('📤 Creating manual activity with data:', activityData);
@@ -188,6 +283,19 @@ export default function CreateActivityConfirmScreen({
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <Text style={styles.sectionTitle}>Activity Details</Text>
         
+        {/* Activity Name */}
+        <View style={styles.fieldContainer}>
+          <Text style={styles.label}>Activity Name</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Name your paddle"
+            value={activityName}
+            onChangeText={setActivityName}
+            autoCapitalize="words"
+            autoCorrect={false}
+          />
+        </View>
+
         {/* Water Body Name */}
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>Water Body</Text>
@@ -239,6 +347,37 @@ export default function CreateActivityConfirmScreen({
           <Text style={styles.helpText}>Record the water conditions</Text>
         </View>
 
+        {/* Photo Picker */}
+        <View style={styles.fieldContainer}>
+          <Text style={styles.label}>Photo (Optional)</Text>
+          {!photoUri ? (
+            <TouchableOpacity style={styles.photoButton} onPress={handlePickImage}>
+              <Text style={styles.photoButtonText}>📷 Add Photo</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.photoContainer}>
+              <Image source={{ uri: photoUri }} style={styles.thumbnail} />
+              <TouchableOpacity style={styles.removePhotoButton} onPress={handleRemovePhoto}>
+                <Text style={styles.removePhotoText}>✕ Remove</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        {/* Notes */}
+        <View style={[styles.fieldContainer, styles.notesContainer]}>
+          <Text style={styles.label}>Notes (Optional)</Text>
+          <TextInput
+            style={[styles.input, styles.notesInput]}
+            placeholder="Add notes about your paddle..."
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+            textAlignVertical="top"
+            autoCapitalize="sentences"
+            autoCorrect={true}
+          />
+        </View>
 
       </ScrollView>
 
@@ -335,6 +474,48 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     marginTop: 4,
     fontStyle: 'italic',
+  },
+  notesContainer: {
+    flex: 1,
+    minHeight: 120,
+  },
+  notesInput: {
+    minHeight: 100,
+    paddingTop: 12,
+  },
+  photoButton: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#0ea5e9',
+    borderRadius: 8,
+    padding: 16,
+    alignItems: 'center',
+  },
+  photoButtonText: {
+    fontSize: 16,
+    color: '#0ea5e9',
+    fontWeight: '500',
+  },
+  photoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  thumbnail: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+  },
+  removePhotoButton: {
+    backgroundColor: '#ef4444',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  removePhotoText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '500',
   },
   footer: {
     padding: 16,
