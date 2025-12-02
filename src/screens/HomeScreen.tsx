@@ -10,11 +10,12 @@ import {
 } from 'react-native';
 import { authService } from '../services';
 import CreateActivityScreen from './CreateActivityScreen';
+import MapLocationPickerScreen from './MapLocationPickerScreen';
 import CreateActivityConfirmScreen from './CreateActivityConfirmScreen';
 import type { User } from '../types';
 import type { WaterBodySearchResult } from '../services/waterBodyService';
 
-type CreateActivityStep = 'select' | 'confirm';
+type CreateActivityStep = 'select' | 'map' | 'confirm';
 
 interface HomeScreenProps {
   onLogout: () => void;
@@ -61,13 +62,22 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
     );
   };
 
-  const handleContinueToConfirm = (
+  const handleContinueToMap = (
     waterBody: WaterBodySearchResult,
     location: { latitude: number; longitude: number }
   ) => {
     setSelectedWaterBody(waterBody);
     setSelectedLocation(location);
+    setCreateActivityStep('map');
+  };
+
+  const handleLocationConfirmed = (location: { latitude: number; longitude: number }) => {
+    setSelectedLocation(location);
     setCreateActivityStep('confirm');
+  };
+
+  const handleBackToMap = () => {
+    setCreateActivityStep('map');
   };
 
   const handleBackToSelect = () => {
@@ -148,14 +158,20 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
       >
         {createActivityStep === 'select' ? (
           <CreateActivityScreen
-            onContinue={handleContinueToConfirm}
+            onContinue={handleContinueToMap}
             onCancel={handleCancel}
+          />
+        ) : createActivityStep === 'map' ? (
+          <MapLocationPickerScreen
+            initialLocation={selectedLocation!}
+            onConfirm={handleLocationConfirmed}
+            onCancel={handleBackToSelect}
           />
         ) : (
           <CreateActivityConfirmScreen
             selectedWaterBody={selectedWaterBody!}
             location={selectedLocation!}
-            onBack={handleBackToSelect}
+            onBack={handleBackToMap}
             onActivityCreated={handleActivityCreated}
           />
         )}
