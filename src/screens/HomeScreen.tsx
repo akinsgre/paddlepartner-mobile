@@ -28,6 +28,8 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
   const [createActivityStep, setCreateActivityStep] = useState<CreateActivityStep>('select');
   const [selectedWaterBody, setSelectedWaterBody] = useState<WaterBodySearchResult | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [mapOverrideLocation, setMapOverrideLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const createActivityScreenRef = useState<any>(null);
 
   useEffect(() => {
     loadUser();
@@ -68,16 +70,20 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
   ) => {
     setSelectedWaterBody(waterBody);
     setSelectedLocation(location);
+    setCreateActivityStep('confirm'); // Go straight to confirm now
+  };
+
+  const handleOpenMapPicker = (currentLocation: { latitude: number; longitude: number }) => {
+    // If current location equals GPS location (no override), we're opening fresh
+    // Otherwise we're opening with an override already set
+    setSelectedLocation(currentLocation);
     setCreateActivityStep('map');
   };
 
   const handleLocationConfirmed = (location: { latitude: number; longitude: number }) => {
-    setSelectedLocation(location);
-    setCreateActivityStep('confirm');
-  };
-
-  const handleBackToMap = () => {
-    setCreateActivityStep('map');
+    setMapOverrideLocation(location);
+    setSelectedWaterBody(null); // Clear selection when location changes
+    setCreateActivityStep('select'); // Return to select screen with new location
   };
 
   const handleBackToSelect = () => {
@@ -89,6 +95,7 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
     setCreateActivityStep('select');
     setSelectedWaterBody(null);
     setSelectedLocation(null);
+    setMapOverrideLocation(null);
     Alert.alert('Success', 'Activity created! You can view it in the web app.');
   };
 
@@ -97,6 +104,7 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
     setCreateActivityStep('select');
     setSelectedWaterBody(null);
     setSelectedLocation(null);
+    setMapOverrideLocation(null);
   };
 
   if (loading) {
@@ -159,7 +167,9 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
         {createActivityStep === 'select' ? (
           <CreateActivityScreen
             onContinue={handleContinueToMap}
+            onOpenMapPicker={handleOpenMapPicker}
             onCancel={handleCancel}
+            mapOverrideLocation={mapOverrideLocation}
           />
         ) : createActivityStep === 'map' ? (
           <MapLocationPickerScreen
@@ -171,7 +181,7 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
           <CreateActivityConfirmScreen
             selectedWaterBody={selectedWaterBody!}
             location={selectedLocation!}
-            onBack={handleBackToMap}
+            onBack={handleBackToSelect}
             onActivityCreated={handleActivityCreated}
           />
         )}

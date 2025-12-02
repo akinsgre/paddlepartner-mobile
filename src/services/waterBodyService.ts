@@ -74,10 +74,11 @@ export const waterBodyService = {
   async searchCombined(
     latitude: number,
     longitude: number,
-    query?: string
+    query?: string,
+    isMapSelected: boolean = false
   ): Promise<WaterBodySearchResponse> {
     const results: WaterBodySearchResult[] = [];
-    console.log('🌊 searchCombined called:', { latitude, longitude, query });
+    console.log('🌊 searchCombined called:', { latitude, longitude, query, isMapSelected });
 
     let candidates: any[] = [];
     let osmStatus: OSMStatus | undefined;
@@ -95,7 +96,7 @@ export const waterBodyService = {
         params: {
           latitude,
           longitude,
-          maxDistance: 50 * 1000
+          isMapSelected: isMapSelected.toString()
         }
       });
       candidates = response.data.waterBodies || [];

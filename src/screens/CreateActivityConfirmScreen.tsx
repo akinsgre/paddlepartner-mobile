@@ -39,6 +39,7 @@ export default function CreateActivityConfirmScreen({
 
       let sharedWaterBodyId: string;
       let finalSectionName: string | undefined;
+      let activityLocation: { latitude: number; longitude: number };
 
       if (isOSMWaterBody) {
         // For OSM water bodies, first check if it already exists, then create if needed
@@ -46,6 +47,9 @@ export default function CreateActivityConfirmScreen({
         
         // Extract OSM ID and type from the id string: "osm-way-123456"
         const [, osmType, osmId] = selectedWaterBody.id.split('-');
+        
+        // For OSM water bodies, use the GPS/map override location from prop
+        activityLocation = location;
         
         // Check if this OSM water body already exists
         const checkResponse = await fetch(
@@ -60,7 +64,7 @@ export default function CreateActivityConfirmScreen({
               osmId,
               name: selectedWaterBody.name,
               type: osmType,
-              coordinates: [location.longitude, location.latitude],
+              coordinates: [activityLocation.longitude, activityLocation.latitude],
             }),
           }
         );
@@ -91,7 +95,7 @@ export default function CreateActivityConfirmScreen({
               body: JSON.stringify({
                 name: selectedWaterBody.name,
                 type: osmType,
-                coordinates: [location.longitude, location.latitude],
+                coordinates: [activityLocation.longitude, activityLocation.latitude],
                 section: sectionName.trim() || undefined,
                 osmData: {
                   osmId,
@@ -118,6 +122,16 @@ export default function CreateActivityConfirmScreen({
         }
         sharedWaterBodyId = waterBodyId;
         
+        // Use water body's database location for existing shared water bodies
+        const coords = selectedWaterBody.sharedWaterBody?.location?.coordinates;
+        if (!coords || coords.length !== 2) {
+          throw new Error('Water body missing location coordinates');
+        }
+        activityLocation = {
+          longitude: coords[0],
+          latitude: coords[1],
+        };
+        
         if (isSection && selectedWaterBody.section?.sectionName) {
           finalSectionName = selectedWaterBody.section.sectionName;
         }
@@ -125,8 +139,8 @@ export default function CreateActivityConfirmScreen({
 
       // Now create the activity
       const activityData: any = {
-        latitude: location.latitude,
-        longitude: location.longitude,
+        latitude: activityLocation.latitude,
+        longitude: activityLocation.longitude,
         sharedWaterBodyId,
       };
 
