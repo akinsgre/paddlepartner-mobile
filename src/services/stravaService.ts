@@ -4,7 +4,7 @@
  */
 
 import api from './api'
-import { StravaAuthResponse, StravaSyncResponse } from '@paddlepartner/shared'
+import { StravaAuthResponse, StravaSyncResponse } from '../types'
 
 export const stravaService = {
   /**

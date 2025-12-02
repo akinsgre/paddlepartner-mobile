@@ -11,7 +11,7 @@ import {
 import { authService } from '../services';
 import CreateActivityScreen from './CreateActivityScreen';
 import CreateActivityConfirmScreen from './CreateActivityConfirmScreen';
-import type { User } from '@paddlepartner/shared';
+import type { User } from '../types';
 import type { WaterBodySearchResult } from '../services/waterBodyService';
 
 type CreateActivityStep = 'select' | 'confirm';

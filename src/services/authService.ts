@@ -5,7 +5,7 @@
 
 import * as WebBrowser from 'expo-web-browser'
 import api, { tokenManager, userManager } from './api'
-import { AuthResponse, User } from '@paddlepartner/shared'
+import { AuthResponse, User } from '../types'
 
 // Warm up the browser for better UX
 WebBrowser.maybeCompleteAuthSession()

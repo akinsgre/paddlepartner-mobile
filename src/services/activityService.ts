@@ -9,7 +9,7 @@ import {
   PaginatedResponse,
   ActivityQueryParams,
   ApiResponse,
-} from '@paddlepartner/shared'
+} from '../types'
 
 export const activityService = {
   /**
