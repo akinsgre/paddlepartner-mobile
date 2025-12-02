@@ -10,6 +10,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { activityService } from '../services';
 import type { WaterBodySearchResult } from '../services/waterBodyService';
 
@@ -29,6 +30,8 @@ export default function CreateActivityConfirmScreen({
   const [loading, setLoading] = useState(false);
   const [sectionName, setSectionName] = useState('');
   const [waterLevel, setWaterLevel] = useState('');
+  const [activityDate, setActivityDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const isOSMWaterBody = selectedWaterBody.id.startsWith('osm-');
   const isSection = selectedWaterBody.type === 'section';
@@ -142,6 +145,7 @@ export default function CreateActivityConfirmScreen({
         latitude: activityLocation.latitude,
         longitude: activityLocation.longitude,
         sharedWaterBodyId,
+        startDate: activityDate.toISOString(),
       };
 
       if (finalSectionName) {
@@ -252,6 +256,52 @@ export default function CreateActivityConfirmScreen({
           />
           <Text style={styles.helpText}>Record the water conditions</Text>
         </View>
+
+        {/* Activity Date */}
+        <View style={styles.fieldContainer}>
+          <Text style={styles.label}>Activity Date</Text>
+          <TouchableOpacity
+            style={styles.dateButton}
+            onPress={() => setShowDatePicker(true)}
+          >
+            <Text style={styles.dateButtonText}>
+              {activityDate.toLocaleDateString('en-US', { 
+                weekday: 'short', 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric' 
+              })}
+            </Text>
+            <Text style={styles.dateButtonIcon}>📅</Text>
+          </TouchableOpacity>
+          <Text style={styles.helpText}>When did this activity take place?</Text>
+        </View>
+
+        {/* Date Picker */}
+        {showDatePicker && (
+          <DateTimePicker
+            value={activityDate}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={(event, selectedDate) => {
+              setShowDatePicker(Platform.OS === 'ios');
+              if (selectedDate) {
+                setActivityDate(selectedDate);
+              }
+            }}
+            maximumDate={new Date()}
+          />
+        )}
+
+        {/* iOS Done button for date picker */}
+        {showDatePicker && Platform.OS === 'ios' && (
+          <TouchableOpacity
+            style={styles.datePickerDoneButton}
+            onPress={() => setShowDatePicker(false)}
+          >
+            <Text style={styles.datePickerDoneText}>Done</Text>
+          </TouchableOpacity>
+        )}
 
 
       </ScrollView>
@@ -366,6 +416,35 @@ const styles = StyleSheet.create({
     backgroundColor: '#9ca3af',
   },
   saveButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  dateButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    padding: 12,
+  },
+  dateButtonText: {
+    fontSize: 16,
+    color: '#111827',
+  },
+  dateButtonIcon: {
+    fontSize: 20,
+  },
+  datePickerDoneButton: {
+    backgroundColor: '#0ea5e9',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  datePickerDoneText: {
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
