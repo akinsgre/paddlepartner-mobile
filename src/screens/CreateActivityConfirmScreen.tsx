@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { activityService } from '../services';
+import api from '../services/api';
+import ENV from '../config/environment';
 import type { WaterBodySearchResult } from '../services/waterBodyService';
 
 interface CreateActivityConfirmScreenProps {
@@ -56,30 +58,16 @@ export default function CreateActivityConfirmScreen({
         activityLocation = location;
         
         // Check if this OSM water body already exists
-        const checkResponse = await fetch(
-          `${process.env.EXPO_PUBLIC_API_URL}/api/activities/check-osm-match`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${await getAuthToken()}`,
-            },
-            body: JSON.stringify({
-              osmId,
-              name: selectedWaterBody.name,
-              type: osmType,
-              coordinates: [activityLocation.longitude, activityLocation.latitude],
-            }),
-          }
-        );
+        const checkResponse = await api.post('/activities/check-osm-match', {
+          osmId,
+          name: selectedWaterBody.name,
+          type: osmType,
+          coordinates: [activityLocation.longitude, activityLocation.latitude],
+        });
 
-        if (!checkResponse.ok) {
-          throw new Error('Failed to check OSM match');
-        }
+        const checkData = checkResponse.data;
 
-        const checkData = await checkResponse.json();
-
-        if (checkData.matched) {
+        if (checkData.matched && checkData.sharedWaterBody) {
           // Water body already exists
           console.log(`✅ OSM water body already exists: ${checkData.sharedWaterBody._id}`);
           sharedWaterBodyId = checkData.sharedWaterBody._id;
@@ -88,33 +76,25 @@ export default function CreateActivityConfirmScreen({
           // Create new SharedWaterBody from OSM data
           console.log('🆕 Creating new SharedWaterBody from OSM data...');
           
-          const createResponse = await fetch(
-            `${process.env.EXPO_PUBLIC_API_URL}/api/shared-water-bodies`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${await getAuthToken()}`,
-              },
-              body: JSON.stringify({
-                name: selectedWaterBody.name,
-                type: osmType,
-                coordinates: [activityLocation.longitude, activityLocation.latitude],
-                section: sectionName.trim() || undefined,
-                osmData: {
-                  osmId,
-                  osmType,
-                },
-              }),
-            }
-          );
+          const createResponse = await api.post('/shared-water-bodies', {
+            name: selectedWaterBody.name,
+            type: osmType,
+            coordinates: [activityLocation.longitude, activityLocation.latitude],
+            section: sectionName.trim() || undefined,
+            osmData: {
+              osmId,
+              osmType,
+            },
+          });
 
-          if (!createResponse.ok) {
-            throw new Error('Failed to create water body');
+          const createData = createResponse.data;
+          
+          // Backend returns { success: true, data: {...} }
+          if (!createData.data || !createData.data._id) {
+            throw new Error('Failed to create water body - invalid response');
           }
-
-          const createData = await createResponse.json();
-          sharedWaterBodyId = createData.sharedWaterBody._id;
+          
+          sharedWaterBodyId = createData.data._id;
           finalSectionName = sectionName.trim() || undefined;
           console.log(`✅ Created SharedWaterBody: ${sharedWaterBodyId}`);
         }
@@ -187,15 +167,6 @@ export default function CreateActivityConfirmScreen({
     } finally {
       setLoading(false);
     }
-  };
-
-  // Helper function to get auth token
-  const getAuthToken = async () => {
-    // This should match however your mobile app stores the auth token
-    // You may need to import AsyncStorage or use your auth service
-    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-    const token = await AsyncStorage.getItem('authToken');
-    return token;
   };
 
   return (
