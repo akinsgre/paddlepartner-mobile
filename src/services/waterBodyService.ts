@@ -115,11 +115,11 @@ export const waterBodyService = {
       const sectionName = candidate.sectionName || candidate.section;
       
       if (sectionName && sectionId) {
-        // SharedWaterBody section
+        // SharedWaterBody section - format as "Water Body (Section)"
         results.push({
           type: 'section',
           id: sectionId, // MongoDB ObjectId - unique
-          name: `${candidate.name} - ${sectionName}`,
+          name: `${candidate.name} (${sectionName})`,
           sharedWaterBody: {
             _id: waterBodyId,
             name: candidate.name,

@@ -221,8 +221,7 @@ export default function CreateActivityScreen({ onContinue, onOpenMapPicker, onCa
             </Text>
           </View>
           <Text style={styles.waterBodyType}>
-            {item.type === 'section' ? 'Section' : 'Water Body'}
-            {item.distance !== undefined && ` • ${waterBodyService.formatDistance(item.distance)}`}
+            {item.distance !== undefined && `${waterBodyService.formatDistance(item.distance)}`}
             {isCommunity && <Text style={styles.communityLabel}> • Community</Text>}
             {isOSM && <Text style={styles.osmLabel}> • OSM</Text>}
           </Text>
