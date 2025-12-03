@@ -7,12 +7,15 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  FlatList,
+  RefreshControl,
 } from 'react-native';
-import { authService } from '../services';
+import { authService, activityService } from '../services';
 import CreateActivityScreen from './CreateActivityScreen';
 import MapLocationPickerScreen from './MapLocationPickerScreen';
 import CreateActivityConfirmScreen from './CreateActivityConfirmScreen';
-import type { User } from '../types';
+import ActivityDetailScreen from './ActivityDetailScreen';
+import type { User, Activity } from '../types';
 import type { WaterBodySearchResult } from '../services/waterBodyService';
 
 type CreateActivityStep = 'select' | 'map' | 'confirm';
@@ -24,6 +27,10 @@ interface HomeScreenProps {
 export default function HomeScreen({ onLogout }: HomeScreenProps) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
+  const [showActivityDetail, setShowActivityDetail] = useState(false);
   const [showCreateActivity, setShowCreateActivity] = useState(false);
   const [createActivityStep, setCreateActivityStep] = useState<CreateActivityStep>('select');
   const [selectedWaterBody, setSelectedWaterBody] = useState<WaterBodySearchResult | null>(null);
@@ -33,6 +40,7 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
 
   useEffect(() => {
     loadUser();
+    loadActivities();
   }, []);
 
   const loadUser = async () => {
@@ -44,6 +52,29 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadActivities = async () => {
+    try {
+      console.log('📋 Loading activities...');
+      const response = await activityService.getActivities({ 
+        page: 1, 
+        limit: 20,
+        sort: '-startDate'
+      }) as any; // API returns different structure than type definition
+      console.log('📋 Activities response:', response);
+      console.log('📋 Activities array:', response.activities);
+      console.log('📋 Number of activities:', response.activities?.length || 0);
+      setActivities(response.activities || []);
+    } catch (error) {
+      console.error('Failed to load activities:', error);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadActivities();
+    setRefreshing(false);
   };
 
   const handleLogout = async () => {
@@ -96,7 +127,8 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
     setSelectedWaterBody(null);
     setSelectedLocation(null);
     setMapOverrideLocation(null);
-    Alert.alert('Success', 'Activity created! You can view it in the web app.');
+    loadActivities(); // Refresh the activity list
+    Alert.alert('Success', 'Activity created successfully!');
   };
 
   const handleCancel = () => {
@@ -142,15 +174,58 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
           <Text style={styles.createActivityText}>Create Activity</Text>
         </TouchableOpacity>
 
-        <View style={styles.messageCard}>
-          <Text style={styles.messageTitle}>Coming Soon!</Text>
-          <Text style={styles.messageText}>
-            More features in development:
-          </Text>
-          <Text style={styles.featureText}>• View activity list</Text>
-          <Text style={styles.featureText}>• Activity details and editing</Text>
-          <Text style={styles.featureText}>• Strava integration</Text>
-          <Text style={styles.featureText}>• Activity statistics</Text>
+        {/* Activity List */}
+        <View style={styles.activityListContainer}>
+          <Text style={styles.activityListTitle}>Recent Activities</Text>
+          <FlatList
+            data={activities}
+            keyExtractor={(item, index) => item._id || `activity-${index}`}
+            renderItem={({ item }) => (
+              <TouchableOpacity 
+                style={styles.activityCard}
+                onPress={() => {
+                  setSelectedActivity(item);
+                  setShowActivityDetail(true);
+                }}
+              >
+                <View style={styles.activityHeader}>
+                  <View style={styles.activityMainInfo}>
+                    {item.name && (
+                      <Text style={styles.activityName}>{item.name}</Text>
+                    )}
+                    <Text style={styles.activityWaterBody}>
+                      {item.sharedWaterBody?.name || 'Unknown Location'}
+                      {item.sharedWaterBody?.section?.name && ` (${item.sharedWaterBody.section.name})`}
+                    </Text>
+                  </View>
+                  <Text style={styles.activityDate}>
+                    {item.startDate ? new Date(item.startDate).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric'
+                    }) : 'No date'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            )}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor="#0ea5e9"
+              />
+            }
+            ListEmptyComponent={
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateIcon}>🏄‍♂️</Text>
+                <Text style={styles.emptyStateText}>No activities yet</Text>
+                <Text style={styles.emptyStateSubtext}>
+                  Tap the + button above to create your first activity
+                </Text>
+              </View>
+            }
+            contentContainerStyle={styles.activityList}
+          />
         </View>
 
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
@@ -183,6 +258,20 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
             location={selectedLocation!}
             onBack={handleBackToSelect}
             onActivityCreated={handleActivityCreated}
+          />
+        )}
+      </Modal>
+
+      <Modal
+        visible={showActivityDetail}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowActivityDetail(false)}
+      >
+        {selectedActivity && (
+          <ActivityDetailScreen
+            activity={selectedActivity}
+            onBack={() => setShowActivityDetail(false)}
           />
         )}
       </Modal>
@@ -336,5 +425,91 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#ffffff',
+  },
+  activityListContainer: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  activityListTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#0c4a6e',
+    marginBottom: 12,
+  },
+  activityList: {
+    flexGrow: 1,
+  },
+  activityCard: {
+    backgroundColor: '#f8fafc',
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  activityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  activityMainInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  activityName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0c4a6e',
+    marginBottom: 4,
+  },
+  activityWaterBody: {
+    fontSize: 14,
+    color: '#475569',
+  },
+  activityDate: {
+    fontSize: 12,
+    color: '#64748b',
+  },
+  activitySection: {
+    fontSize: 14,
+    color: '#475569',
+    marginBottom: 4,
+  },
+  activityDetail: {
+    fontSize: 12,
+    color: '#64748b',
+    marginBottom: 2,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyStateIcon: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  emptyStateText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#0c4a6e',
+    marginBottom: 8,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+    paddingHorizontal: 40,
   },
 });

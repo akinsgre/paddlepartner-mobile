@@ -1,0 +1,250 @@
+import React from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  ScrollView,
+  Platform,
+} from 'react-native';
+import type { Activity } from '../types';
+
+interface ActivityDetailScreenProps {
+  activity: Activity;
+  onBack: () => void;
+}
+
+export default function ActivityDetailScreen({ activity, onBack }: ActivityDetailScreenProps) {
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={onBack} style={styles.backButton}>
+          <Text style={styles.backButtonText}>← Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Activity Details</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
+      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+        {/* Activity Name */}
+        {activity.name && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{activity.name}</Text>
+          </View>
+        )}
+
+        {/* Water Body */}
+        <View style={styles.infoCard}>
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>Water Body</Text>
+            <Text style={styles.value}>
+              {activity.sharedWaterBody?.name || 'Unknown'}
+            </Text>
+          </View>
+
+          {activity.sharedWaterBody?.section?.name && (
+            <View style={styles.infoRow}>
+              <Text style={styles.label}>Section</Text>
+              <Text style={styles.value}>{activity.sharedWaterBody.section.name}</Text>
+            </View>
+          )}
+
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>Date</Text>
+            <Text style={styles.value}>
+              {activity.startDate ? new Date(activity.startDate).toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              }) : 'No date'}
+            </Text>
+          </View>
+
+          {activity.waterBody?.level && (
+            <View style={styles.infoRow}>
+              <Text style={styles.label}>Water Level</Text>
+              <Text style={styles.value}>{activity.waterBody.level}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Activity Stats */}
+        {(activity.distance > 0 || activity.movingTime > 0) && (
+          <View style={styles.infoCard}>
+            <Text style={styles.cardTitle}>Statistics</Text>
+            
+            {activity.distance > 0 && (
+              <View style={styles.infoRow}>
+                <Text style={styles.label}>Distance</Text>
+                <Text style={styles.value}>
+                  {(activity.distance / 1000).toFixed(2)} km
+                </Text>
+              </View>
+            )}
+
+            {activity.movingTime > 0 && (
+              <View style={styles.infoRow}>
+                <Text style={styles.label}>Moving Time</Text>
+                <Text style={styles.value}>
+                  {Math.floor(activity.movingTime / 3600)}h {Math.floor((activity.movingTime % 3600) / 60)}m
+                </Text>
+              </View>
+            )}
+
+            {(activity.averageSpeed ?? 0) > 0 && (
+              <View style={styles.infoRow}>
+                <Text style={styles.label}>Average Speed</Text>
+                <Text style={styles.value}>
+                  {activity.averageSpeed?.toFixed(2)} m/s
+                </Text>
+              </View>
+            )}
+
+            {(activity.maxSpeed ?? 0) > 0 && (
+              <View style={styles.infoRow}>
+                <Text style={styles.label}>Max Speed</Text>
+                <Text style={styles.value}>
+                  {activity.maxSpeed?.toFixed(2)} m/s
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Additional Info */}
+        <View style={styles.infoCard}>
+          <Text style={styles.cardTitle}>Additional Information</Text>
+          
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>Sport Type</Text>
+            <Text style={styles.value}>{activity.sportType || 'Unknown'}</Text>
+          </View>
+
+          {activity.paddleType && (
+            <View style={styles.infoRow}>
+              <Text style={styles.label}>Paddle Type</Text>
+              <Text style={styles.value}>{activity.paddleType}</Text>
+            </View>
+          )}
+
+          <View style={styles.infoRow}>
+            <Text style={styles.label}>Entry Type</Text>
+            <Text style={styles.value}>
+              {activity.manualEntry ? 'Manual' : 'Strava Sync'}
+            </Text>
+          </View>
+
+          {activity.stravaId && (
+            <View style={styles.infoRow}>
+              <Text style={styles.label}>Strava ID</Text>
+              <Text style={styles.value}>{activity.stravaId}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Notes */}
+        {activity.notes && (
+          <View style={styles.infoCard}>
+            <Text style={styles.cardTitle}>Notes</Text>
+            <Text style={styles.notesText}>{activity.notes}</Text>
+          </View>
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'ios' ? 60 : 20,
+    paddingBottom: 16,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  backButton: {
+    padding: 8,
+  },
+  backButtonText: {
+    fontSize: 16,
+    color: '#0ea5e9',
+    fontWeight: '600',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  headerSpacer: {
+    width: 60,
+  },
+  content: {
+    flex: 1,
+  },
+  contentContainer: {
+    padding: 16,
+  },
+  section: {
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#0c4a6e',
+  },
+  infoCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#0c4a6e',
+    marginBottom: 12,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  label: {
+    fontSize: 14,
+    color: '#64748b',
+    fontWeight: '500',
+    flex: 1,
+  },
+  value: {
+    fontSize: 14,
+    color: '#111827',
+    fontWeight: '600',
+    flex: 2,
+    textAlign: 'right',
+  },
+  notesText: {
+    fontSize: 14,
+    color: '#374151',
+    lineHeight: 20,
+  },
+});

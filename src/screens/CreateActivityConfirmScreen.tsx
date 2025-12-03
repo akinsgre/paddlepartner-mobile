@@ -28,6 +28,7 @@ export default function CreateActivityConfirmScreen({
   onActivityCreated,
 }: CreateActivityConfirmScreenProps) {
   const [loading, setLoading] = useState(false);
+  const [activityName, setActivityName] = useState('');
   const [sectionName, setSectionName] = useState('');
   const [waterLevel, setWaterLevel] = useState('');
   const [activityDate, setActivityDate] = useState(new Date());
@@ -148,6 +149,10 @@ export default function CreateActivityConfirmScreen({
         startDate: activityDate.toISOString(),
       };
 
+      if (activityName.trim()) {
+        activityData.name = activityName.trim();
+      }
+
       if (finalSectionName) {
         activityData.sectionName = finalSectionName;
       }
@@ -206,6 +211,20 @@ export default function CreateActivityConfirmScreen({
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <Text style={styles.sectionTitle}>Activity Details</Text>
         
+        {/* Activity Name */}
+        <View style={styles.fieldContainer}>
+          <Text style={styles.label}>Activity Name (Optional)</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g., Morning paddle, Weekend trip"
+            value={activityName}
+            onChangeText={setActivityName}
+            autoCapitalize="words"
+            autoCorrect={false}
+          />
+          <Text style={styles.helpText}>Give your activity a memorable name</Text>
+        </View>
+
         {/* Water Body Name */}
         <View style={styles.fieldContainer}>
           <Text style={styles.label}>Water Body</Text>
