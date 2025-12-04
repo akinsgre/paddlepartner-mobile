@@ -27,7 +27,9 @@ export const authService = {
       const { sessionId, authUrl } = initResponse.data
       
       // Step 2: Open browser for user to authenticate
-      const result = await WebBrowser.openAuthSessionAsync(authUrl, undefined)
+      // Use custom scheme for iOS compatibility (Android works with undefined)
+      const redirectUrl = 'paddlepartner://auth'
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl)
       
       if (result.type === 'cancel') {
         return { success: false, error: 'Authentication cancelled' }
