@@ -10,6 +10,7 @@ import {
   FlatList,
   RefreshControl,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { authService, activityService } from '../services';
 import CreateActivityScreen from './CreateActivityScreen';
 import MapLocationPickerScreen from './MapLocationPickerScreen';
@@ -30,6 +31,10 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
+  const [activeTab, setActiveTab] = useState<'all' | 'my'>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [showActivityDetail, setShowActivityDetail] = useState(false);
   const [showCreateActivity, setShowCreateActivity] = useState(false);
   const [createActivityStep, setCreateActivityStep] = useState<CreateActivityStep>('select');
@@ -54,18 +59,38 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
     }
   };
 
-  const loadActivities = async () => {
+  const loadActivities = async (page = 1, append = false) => {
     try {
-      console.log('📋 Loading activities...');
-      const response = await activityService.getActivities({ 
-        page: 1, 
-        limit: 20,
-        sort: '-startDate'
-      }) as any; // API returns different structure than type definition
+      console.log(`📋 Loading ${activeTab} activities... page ${page}`);
+      
+      let response: any;
+      if (activeTab === 'all') {
+        // Load public activities
+        response = await activityService.getPublicActivities({ 
+          page, 
+          limit: 20
+        });
+      } else {
+        // Load user's activities
+        response = await activityService.getActivities({ 
+          page, 
+          limit: 20,
+          sort: '-startDate'
+        });
+      }
+      
       console.log('📋 Activities response:', response);
-      console.log('📋 Activities array:', response.activities);
-      console.log('📋 Number of activities:', response.activities?.length || 0);
-      setActivities(response.activities || []);
+      const newActivities = response.activities || [];
+      
+      if (append) {
+        setActivities(prev => [...prev, ...newActivities]);
+      } else {
+        setActivities(newActivities);
+      }
+      
+      // Check if there are more pages
+      setHasMore(page < (response.pages || 1));
+      setCurrentPage(page);
     } catch (error) {
       console.error('Failed to load activities:', error);
     }
@@ -73,9 +98,32 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadActivities();
+    setCurrentPage(1);
+    setHasMore(true);
+    await loadActivities(1, false);
     setRefreshing(false);
   };
+
+  const loadMoreActivities = async () => {
+    if (loadingMore || !hasMore) return;
+    
+    setLoadingMore(true);
+    await loadActivities(currentPage + 1, true);
+    setLoadingMore(false);
+  };
+
+  const handleTabChange = (tab: 'all' | 'my') => {
+    if (tab === activeTab) return;
+    
+    setActiveTab(tab);
+    setActivities([]);
+    setCurrentPage(1);
+    setHasMore(true);
+  };
+
+  useEffect(() => {
+    loadActivities(1, false);
+  }, [activeTab]);
 
   const handleLogout = async () => {
     Alert.alert(
@@ -150,7 +198,7 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.logo}>🏄‍♂️</Text>
+        <MaterialCommunityIcons name="kayaking" size={60} color="#ffffff" style={styles.logo} />
         <Text style={styles.title}>Paddle Partner</Text>
         <Text style={styles.subtitle}>Mobile App</Text>
       </View>
@@ -174,9 +222,29 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
           <Text style={styles.createActivityText}>Create Activity</Text>
         </TouchableOpacity>
 
-        {/* Activity List */}
+        {/* Activity Feed with Tabs */}
         <View style={styles.activityListContainer}>
-          <Text style={styles.activityListTitle}>Recent Activities</Text>
+          <View style={styles.tabsContainer}>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'all' && styles.tabActive]}
+              onPress={() => handleTabChange('all')}
+            >
+              <Text style={[styles.tabText, activeTab === 'all' && styles.tabTextActive]}>
+                All Activities
+              </Text>
+            </TouchableOpacity>
+            {user && (
+              <TouchableOpacity
+                style={[styles.tab, activeTab === 'my' && styles.tabActive]}
+                onPress={() => handleTabChange('my')}
+              >
+                <Text style={[styles.tabText, activeTab === 'my' && styles.tabTextActive]}>
+                  My Activities
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          
           <FlatList
             data={activities}
             keyExtractor={(item, index) => item._id || `activity-${index}`}
@@ -194,7 +262,8 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
                       <Text style={styles.activityName}>{item.name}</Text>
                     )}
                     <Text style={styles.activityWaterBody}>
-                      {item.sharedWaterBody?.name || 'Unknown Location'}
+                      {(typeof item.sharedWaterBody === 'object' && 
+                        (item.sharedWaterBody?._id?.name || (item.sharedWaterBody as any)?.name)) || 'Unknown Location'}
                       {item.sharedWaterBody?.section?.name && ` (${item.sharedWaterBody.section.name})`}
                     </Text>
                   </View>
@@ -215,12 +284,25 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
                 tintColor="#0ea5e9"
               />
             }
+            onEndReached={loadMoreActivities}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={
+              loadingMore ? (
+                <View style={styles.loadingMore}>
+                  <ActivityIndicator size="small" color="#0ea5e9" />
+                </View>
+              ) : null
+            }
             ListEmptyComponent={
               <View style={styles.emptyState}>
-                <Text style={styles.emptyStateIcon}>🏄‍♂️</Text>
-                <Text style={styles.emptyStateText}>No activities yet</Text>
+                <MaterialCommunityIcons name="kayaking" size={64} color="#64748b" style={styles.emptyStateIcon} />
+                <Text style={styles.emptyStateText}>
+                  {activeTab === 'my' ? 'No activities yet' : 'No public activities yet'}
+                </Text>
                 <Text style={styles.emptyStateSubtext}>
-                  Tap the + button above to create your first activity
+                  {activeTab === 'my' 
+                    ? 'Tap the + button above to create your first activity'
+                    : 'Be the first to share an activity!'}
                 </Text>
               </View>
             }
@@ -297,7 +379,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logo: {
-    fontSize: 60,
     marginBottom: 10,
   },
   title: {
@@ -430,7 +511,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#ffffff',
     borderRadius: 12,
-    padding: 16,
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -440,6 +521,33 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
+  tabsContainer: {
+    flexDirection: 'row',
+    borderBottomWidth: 2,
+    borderBottomColor: '#e2e8f0',
+    backgroundColor: '#ffffff',
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+    marginBottom: -2,
+  },
+  tabActive: {
+    borderBottomColor: '#0ea5e9',
+  },
+  tabText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#64748b',
+  },
+  tabTextActive: {
+    color: '#0ea5e9',
+    fontWeight: '600',
+  },
   activityListTitle: {
     fontSize: 20,
     fontWeight: 'bold',
@@ -448,6 +556,11 @@ const styles = StyleSheet.create({
   },
   activityList: {
     flexGrow: 1,
+    padding: 16,
+  },
+  loadingMore: {
+    paddingVertical: 20,
+    alignItems: 'center',
   },
   activityCard: {
     backgroundColor: '#f8fafc',
@@ -497,7 +610,6 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
   },
   emptyStateIcon: {
-    fontSize: 64,
     marginBottom: 16,
   },
   emptyStateText: {

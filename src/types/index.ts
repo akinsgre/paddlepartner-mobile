@@ -45,11 +45,13 @@ export interface Activity {
   paddleType?: string | null
   
   sharedWaterBody?: {
-    _id: string
-    name?: string
-    type?: string
+    _id?: {
+      _id?: string
+      name?: string
+      type?: string
+    }
     section?: {
-      _id: string
+      _id?: string
       name?: string
     }
   } | null

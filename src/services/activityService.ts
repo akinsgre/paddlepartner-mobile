@@ -79,6 +79,18 @@ export const activityService = {
     const response = await api.post(`/activities/${activityId}/select-water-body`, data)
     return response.data
   },
+
+  /**
+   * Get public activities feed
+   */
+  async getPublicActivities(params: { page?: number; limit?: number } = {}): Promise<any> {
+    const queryParams = new URLSearchParams()
+    if (params.page) queryParams.append('page', params.page.toString())
+    if (params.limit) queryParams.append('limit', params.limit.toString())
+    
+    const response = await api.get(`/activities/public/feed?${queryParams.toString()}`)
+    return response.data
+  },
 }
 
 export default activityService
