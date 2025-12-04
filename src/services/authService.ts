@@ -17,35 +17,46 @@ export const authService = {
    */
   async loginWithGoogle(): Promise<{ success: boolean; user?: User; error?: string }> {
     try {
+      console.log('🔐 Step 1: Initializing OAuth session...')
       // Step 1: Initialize OAuth session on backend
       const initResponse = await api.get('/auth/mobile/google/init')
       
       if (!initResponse.data.success) {
+        console.error('❌ Failed to initialize auth session')
         return { success: false, error: 'Failed to initialize authentication' }
       }
       
       const { sessionId, authUrl } = initResponse.data
+      console.log('✅ Session initialized:', sessionId)
+      console.log('🌐 Opening browser for OAuth...')
       
       // Step 2: Open browser for user to authenticate
       // Use custom scheme for iOS compatibility (Android works with undefined)
       const redirectUrl = 'paddlepartner://auth'
       const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl)
       
+      console.log('📱 Browser result:', result.type)
+      
       if (result.type === 'cancel') {
+        console.log('⚠️ User cancelled authentication')
         return { success: false, error: 'Authentication cancelled' }
       }
       
       // Step 3: Poll backend for authentication result
+      console.log('⏳ Polling for auth result...')
       const maxAttempts = 30 // 30 seconds max
       const pollInterval = 1000 // 1 second
       
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
         await new Promise(resolve => setTimeout(resolve, pollInterval))
         
+        console.log(`🔄 Poll attempt ${attempt + 1}/${maxAttempts}`)
         const statusResponse = await api.get(`/auth/mobile/google/status/${sessionId}`)
+        console.log('📊 Status response:', statusResponse.data.status)
         
         if (statusResponse.data.status === 'success') {
           // Authentication successful!
+          console.log('✅ Authentication successful!')
           const { token, user } = statusResponse.data
           
           // Store JWT token and user data
@@ -56,6 +67,7 @@ export const authService = {
         }
         
         if (statusResponse.data.status === 'error') {
+          console.error('❌ Auth error:', statusResponse.data.error, statusResponse.data.message)
           return {
             success: false,
             error: statusResponse.data.message || statusResponse.data.error || 'Authentication failed'
@@ -66,10 +78,11 @@ export const authService = {
       }
       
       // Timeout
+      console.error('⏱️ Authentication timeout')
       return { success: false, error: 'Authentication timeout - please try again' }
       
     } catch (error) {
-      console.error('Login error:', error)
+      console.error('💥 Login error:', error)
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Authentication failed'

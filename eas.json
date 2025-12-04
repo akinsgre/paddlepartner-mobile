@@ -11,7 +11,10 @@
     "ios-simulator": {
       "extends": "development",
       "ios": {
-        "simulator": true
+        "simulator": true,
+        "infoPlist": {
+          "ITSAppUsesNonExemptEncryption": false
+        }
       }
     },
     "preview": {
