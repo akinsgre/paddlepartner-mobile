@@ -16,6 +16,9 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: 'com.paddlepartner.mobile',
+      infoPlist: {
+        ITSAppUsesNonExemptEncryption: false
+      },
       config: {
         googleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
       },
