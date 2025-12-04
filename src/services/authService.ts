@@ -31,15 +31,16 @@ export const authService = {
       console.log('🌐 Opening browser for OAuth...')
       
       // Step 2: Open browser for user to authenticate
-      // Use custom scheme for iOS compatibility (Android works with undefined)
-      const redirectUrl = 'paddlepartner://auth'
-      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl)
+      // Don't pass redirectUrl - let user see success page and manually close browser
+      // The backend will update the session, and we'll poll for the result
+      const result = await WebBrowser.openAuthSessionAsync(authUrl)
       
       console.log('📱 Browser result:', result.type)
       
       if (result.type === 'cancel') {
-        console.log('⚠️ User cancelled authentication')
-        return { success: false, error: 'Authentication cancelled' }
+        console.log('⚠️ User closed browser - checking if auth completed...')
+        // Don't return immediately - user might have completed auth before closing
+        // We'll check the session status below
       }
       
       // Step 3: Poll backend for authentication result
