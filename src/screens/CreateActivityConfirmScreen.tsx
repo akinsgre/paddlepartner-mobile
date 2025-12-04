@@ -31,10 +31,12 @@ export default function CreateActivityConfirmScreen({
 }: CreateActivityConfirmScreenProps) {
   const [loading, setLoading] = useState(false);
   const [activityName, setActivityName] = useState('');
+  const [notes, setNotes] = useState('');
   const [sectionName, setSectionName] = useState('');
   const [waterLevel, setWaterLevel] = useState('');
   const [activityDate, setActivityDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [waterBodyExpanded, setWaterBodyExpanded] = useState(false);
 
   const isOSMWaterBody = selectedWaterBody.id.startsWith('osm-');
   const isSection = selectedWaterBody.type === 'section';
@@ -133,6 +135,10 @@ export default function CreateActivityConfirmScreen({
         activityData.name = activityName.trim();
       }
 
+      if (notes.trim()) {
+        activityData.notes = notes.trim();
+      }
+
       if (finalSectionName) {
         activityData.sectionName = finalSectionName;
       }
@@ -196,55 +202,94 @@ export default function CreateActivityConfirmScreen({
           <Text style={styles.helpText}>Give your activity a memorable name</Text>
         </View>
 
-        {/* Water Body Name */}
+        {/* Notes */}
         <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Water Body</Text>
-          <View style={styles.readOnlyField}>
-            <Text style={styles.readOnlyText}>{selectedWaterBody.name}</Text>
-          </View>
-          {isOSMWaterBody && (
-            <Text style={styles.helpText}>From OpenStreetMap - will be added to shared database</Text>
-          )}
+          <Text style={styles.label}>Notes (Optional)</Text>
+          <TextInput
+            style={[styles.input, styles.notesInput]}
+            placeholder="Add notes about your paddle..."
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+            numberOfLines={3}
+            textAlignVertical="top"
+            autoCapitalize="sentences"
+            autoCorrect={true}
+          />
+          <Text style={styles.helpText}>Record memories, conditions, or other details</Text>
         </View>
 
-        {/* Section */}
-        {isSection && !isOSMWaterBody && (
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Section</Text>
-            <View style={styles.readOnlyField}>
-              <Text style={styles.readOnlyText}>{selectedWaterBody.section?.sectionName}</Text>
-            </View>
-          </View>
-        )}
-
-        {/* Section Input for OSM */}
-        {isOSMWaterBody && (
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Section (Optional)</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g., Upper Section, Lower Run"
-              value={sectionName}
-              onChangeText={setSectionName}
-              autoCapitalize="words"
-              autoCorrect={false}
-            />
-            <Text style={styles.helpText}>Add a section name if applicable</Text>
-          </View>
-        )}
-
-        {/* Water Level */}
+        {/* Water Body Collapsible Section */}
         <View style={styles.fieldContainer}>
-          <Text style={styles.label}>Water Level (Optional)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g., 2.5 feet, Medium, High"
-            value={waterLevel}
-            onChangeText={setWaterLevel}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          <Text style={styles.helpText}>Record the water conditions</Text>
+          <TouchableOpacity 
+            style={styles.collapsibleHeader}
+            onPress={() => setWaterBodyExpanded(!waterBodyExpanded)}
+          >
+            <View style={styles.collapsibleHeaderContent}>
+              <Text style={styles.collapsibleHeaderTitle}>Water Body Details</Text>
+              <Text style={styles.collapsibleHeaderSummary}>
+                {selectedWaterBody.name}
+                {(isSection && !isOSMWaterBody && selectedWaterBody.section?.sectionName) && ` • ${selectedWaterBody.section.sectionName}`}
+                {waterLevel && ` • ${waterLevel}`}
+              </Text>
+            </View>
+            <Text style={styles.collapsibleIcon}>{waterBodyExpanded ? '▼' : '▶'}</Text>
+          </TouchableOpacity>
+
+          {waterBodyExpanded && (
+            <View style={styles.collapsibleContent}>
+              {/* Water Body Name */}
+              <View style={styles.collapsibleFieldContainer}>
+                <Text style={styles.label}>Water Body</Text>
+                <View style={styles.readOnlyField}>
+                  <Text style={styles.readOnlyText}>{selectedWaterBody.name}</Text>
+                </View>
+                {isOSMWaterBody && (
+                  <Text style={styles.helpText}>From OpenStreetMap - will be added to shared database</Text>
+                )}
+              </View>
+
+              {/* Section */}
+              {isSection && !isOSMWaterBody && (
+                <View style={styles.collapsibleFieldContainer}>
+                  <Text style={styles.label}>Section</Text>
+                  <View style={styles.readOnlyField}>
+                    <Text style={styles.readOnlyText}>{selectedWaterBody.section?.sectionName}</Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Section Input for OSM */}
+              {isOSMWaterBody && (
+                <View style={styles.collapsibleFieldContainer}>
+                  <Text style={styles.label}>Section (Optional)</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g., Upper Section, Lower Run"
+                    value={sectionName}
+                    onChangeText={setSectionName}
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                  />
+                  <Text style={styles.helpText}>Add a section name if applicable</Text>
+                </View>
+              )}
+
+              {/* Water Level */}
+              <View style={styles.collapsibleFieldContainer}>
+                <Text style={styles.label}>Water Level (Optional)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g., 2.5 feet, Medium, High"
+                  value={waterLevel}
+                  onChangeText={setWaterLevel}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <Text style={styles.helpText}>Record the water conditions</Text>
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Activity Date */}
@@ -372,6 +417,45 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
+  },
+  notesInput: {
+    minHeight: 80,
+    paddingTop: 12,
+  },
+  collapsibleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    padding: 12,
+  },
+  collapsibleHeaderContent: {
+    flex: 1,
+  },
+  collapsibleHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  collapsibleHeaderSummary: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  collapsibleIcon: {
+    fontSize: 16,
+    color: '#6b7280',
+    marginLeft: 8,
+  },
+  collapsibleContent: {
+    marginTop: 12,
+    paddingLeft: 8,
+  },
+  collapsibleFieldContainer: {
+    marginBottom: 16,
   },
   readOnlyField: {
     backgroundColor: '#f9fafb',
