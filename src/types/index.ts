@@ -58,7 +58,6 @@ export interface Activity {
   
   waterBody?: {
     level?: string
-    waterLevel?: string
   } | null
   
   sharedWaterBodySection?: SharedWaterBodySection | string | null
