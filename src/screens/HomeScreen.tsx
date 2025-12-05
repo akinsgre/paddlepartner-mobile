@@ -82,6 +82,13 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
       console.log('📋 Activities response:', response);
       const newActivities = response.activities || [];
       
+      // Debug: Check the structure of the first activity
+      if (newActivities.length > 0) {
+        console.log('🔍 First activity structure:', JSON.stringify(newActivities[0], null, 2));
+        console.log('🔍 sharedWaterBody:', newActivities[0].sharedWaterBody);
+        console.log('🔍 sharedWaterBody.name:', newActivities[0].sharedWaterBody?.name);
+      }
+      
       if (append) {
         setActivities(prev => [...prev, ...newActivities]);
       } else {
@@ -262,7 +269,7 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
                       <Text style={styles.activityName}>{item.name}</Text>
                     )}
                     <Text style={styles.activityWaterBody}>
-                      {(typeof item.sharedWaterBody === 'object' && item.sharedWaterBody?.name) || 'Unknown Location'}
+                      {item.sharedWaterBody?.name || 'Unknown Location'}
                       {item.sharedWaterBody?.section?.name && ` (${item.sharedWaterBody.section.name})`}
                     </Text>
                   </View>
