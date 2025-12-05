@@ -43,16 +43,17 @@ export interface Activity {
   movingTime: number
   waterType?: string | null
   paddleType?: string | null
+  waterLevel?: string | null
   
   sharedWaterBody?: {
-    _id?: {
-      _id?: string
-      name?: string
-      type?: string
-    }
+    _id?: string
+    name?: string
+    type?: string
     section?: {
       _id?: string
       name?: string
+      description?: string
+      difficulty?: string
     }
   } | null
   

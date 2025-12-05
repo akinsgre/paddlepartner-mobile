@@ -262,8 +262,7 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
                       <Text style={styles.activityName}>{item.name}</Text>
                     )}
                     <Text style={styles.activityWaterBody}>
-                      {(typeof item.sharedWaterBody === 'object' && 
-                        (item.sharedWaterBody?._id?.name || (item.sharedWaterBody as any)?.name)) || 'Unknown Location'}
+                      {(typeof item.sharedWaterBody === 'object' && item.sharedWaterBody?.name) || 'Unknown Location'}
                       {item.sharedWaterBody?.section?.name && ` (${item.sharedWaterBody.section.name})`}
                     </Text>
                   </View>
