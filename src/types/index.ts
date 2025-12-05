@@ -43,7 +43,6 @@ export interface Activity {
   movingTime: number
   waterType?: string | null
   paddleType?: string | null
-  waterLevel?: string | null
   
   sharedWaterBody?: {
     _id?: string
@@ -59,6 +58,7 @@ export interface Activity {
   
   waterBody?: {
     level?: string
+    waterLevel?: string
   } | null
   
   sharedWaterBodySection?: SharedWaterBodySection | string | null
