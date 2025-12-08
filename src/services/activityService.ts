@@ -91,6 +91,18 @@ export const activityService = {
     const response = await api.get(`/activities/public/feed?${queryParams.toString()}`)
     return response.data
   },
+
+  /**
+   * Get activities from followed users and current user
+   */
+  async getFollowingActivities(params: { page?: number; limit?: number } = {}): Promise<any> {
+    const queryParams = new URLSearchParams()
+    if (params.page) queryParams.append('page', params.page.toString())
+    if (params.limit) queryParams.append('limit', params.limit.toString())
+    
+    const response = await api.get(`/activities/following/feed?${queryParams.toString()}`)
+    return response.data
+  },
 }
 
 export default activityService
