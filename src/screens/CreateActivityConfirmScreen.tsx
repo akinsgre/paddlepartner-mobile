@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -10,11 +10,13 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { activityService } from '../services';
+import { activityService, paddleTypeService } from '../services';
 import api from '../services/api';
 import ENV from '../config/environment';
 import type { WaterBodySearchResult } from '../services/waterBodyService';
+import type { PaddleType } from '../types';
 
 interface CreateActivityConfirmScreenProps {
   selectedWaterBody: WaterBodySearchResult;
@@ -37,9 +39,29 @@ export default function CreateActivityConfirmScreen({
   const [activityDate, setActivityDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [waterBodyExpanded, setWaterBodyExpanded] = useState(false);
+  const [paddleTypes, setPaddleTypes] = useState<PaddleType[]>([]);
+  const [selectedPaddleType, setSelectedPaddleType] = useState<string>('');
+  const [loadingPaddleTypes, setLoadingPaddleTypes] = useState(true);
 
   const isOSMWaterBody = selectedWaterBody.id.startsWith('osm-');
   const isSection = selectedWaterBody.type === 'section';
+
+  // Load paddle types on mount
+  useEffect(() => {
+    loadPaddleTypes();
+  }, []);
+
+  const loadPaddleTypes = async () => {
+    try {
+      setLoadingPaddleTypes(true);
+      const types = await paddleTypeService.getUserPaddleTypes();
+      setPaddleTypes(types);
+    } catch (error) {
+      console.error('Failed to load paddle types:', error);
+    } finally {
+      setLoadingPaddleTypes(false);
+    }
+  };
 
   const handleSave = async () => {
     try {
@@ -147,6 +169,10 @@ export default function CreateActivityConfirmScreen({
         activityData.waterLevel = waterLevel.trim();
       }
 
+      if (selectedPaddleType) {
+        activityData.paddleType = selectedPaddleType;
+      }
+
       console.log('📤 Creating manual activity with data:', activityData);
 
       await activityService.createManualActivity(activityData);
@@ -217,6 +243,34 @@ export default function CreateActivityConfirmScreen({
             autoCorrect={true}
           />
           <Text style={styles.helpText}>Record memories, conditions, or other details</Text>
+        </View>
+
+        {/* Paddle Type */}
+        <View style={styles.fieldContainer}>
+          <Text style={styles.label}>Paddle Type (Optional)</Text>
+          {loadingPaddleTypes ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color="#0ea5e9" />
+            </View>
+          ) : (
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={selectedPaddleType}
+                onValueChange={(itemValue) => setSelectedPaddleType(itemValue)}
+                style={styles.picker}
+              >
+                <Picker.Item label="Select paddle type..." value="" />
+                {paddleTypes.map((type) => (
+                  <Picker.Item
+                    key={type._id}
+                    label={type.displayName || type.name}
+                    value={type.name}
+                  />
+                ))}
+              </Picker>
+            </View>
+          )}
+          <Text style={styles.helpText}>What type of paddling was this?</Text>
         </View>
 
         {/* Water Body Collapsible Section */}
@@ -421,6 +475,20 @@ const styles = StyleSheet.create({
   notesInput: {
     minHeight: 80,
     paddingTop: 12,
+  },
+  loadingContainer: {
+    padding: 16,
+    alignItems: 'center',
+  },
+  pickerContainer: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  picker: {
+    height: Platform.OS === 'ios' ? 180 : 50,
   },
   collapsibleHeader: {
     flexDirection: 'row',

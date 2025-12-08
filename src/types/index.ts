@@ -26,6 +26,7 @@ export interface UserPreferences {
   defaultPrivacy: 'public' | 'private'
   units: 'metric' | 'imperial'
   timezone?: string
+  selectedPaddleTypes?: string[]
 }
 
 // ========================================
@@ -178,9 +179,9 @@ export interface GeoPoint {
 export interface PaddleType {
   _id?: string
   name: string
+  displayName?: string
   description?: string
-  category: 'flatwater' | 'whitewater' | 'sea' | 'recreational' | 'racing' | 'other'
-  icon?: string
+  sortOrder?: number
   createdAt?: Date
   updatedAt?: Date
 }
