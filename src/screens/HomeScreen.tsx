@@ -65,13 +65,13 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
       
       let response: any;
       if (activeTab === 'all') {
-        // Load public activities
-        response = await activityService.getPublicActivities({ 
+        // Load activities from followed users and current user
+        response = await activityService.getFollowingActivities({ 
           page, 
           limit: 20
         });
       } else {
-        // Load user's activities
+        // Load only user's own activities
         response = await activityService.getActivities({ 
           page, 
           limit: 20,
@@ -196,7 +196,7 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={styles.loadingContainer} testID="loading-indicator">
         <ActivityIndicator size="large" color="#0ea5e9" />
       </View>
     );
@@ -224,6 +224,7 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
         <TouchableOpacity
           style={styles.createActivityButton}
           onPress={() => setShowCreateActivity(true)}
+          testID="create-activity-button"
         >
           <Text style={styles.createActivityIcon}>+</Text>
           <Text style={styles.createActivityText}>Create Activity</Text>
@@ -235,15 +236,17 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
             <TouchableOpacity
               style={[styles.tab, activeTab === 'all' && styles.tabActive]}
               onPress={() => handleTabChange('all')}
+              testID="following-tab"
             >
               <Text style={[styles.tabText, activeTab === 'all' && styles.tabTextActive]}>
-                All Activities
+                Following
               </Text>
             </TouchableOpacity>
             {user && (
               <TouchableOpacity
                 style={[styles.tab, activeTab === 'my' && styles.tabActive]}
                 onPress={() => handleTabChange('my')}
+                testID="my-activities-tab"
               >
                 <Text style={[styles.tabText, activeTab === 'my' && styles.tabTextActive]}>
                   My Activities
@@ -253,6 +256,7 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
           </View>
           
           <FlatList
+            testID="activities-list"
             data={activities}
             keyExtractor={(item, index) => item._id || `activity-${index}`}
             renderItem={({ item }) => (
