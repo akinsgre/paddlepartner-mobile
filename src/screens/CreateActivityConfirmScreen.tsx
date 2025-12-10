@@ -9,8 +9,8 @@ import {
   TextInput,
   Platform,
   ScrollView,
+  Modal,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { activityService, paddleTypeService } from '../services';
 import api from '../services/api';
@@ -42,6 +42,7 @@ export default function CreateActivityConfirmScreen({
   const [paddleTypes, setPaddleTypes] = useState<PaddleType[]>([]);
   const [selectedPaddleType, setSelectedPaddleType] = useState<string>('');
   const [loadingPaddleTypes, setLoadingPaddleTypes] = useState(true);
+  const [showPaddleTypePicker, setShowPaddleTypePicker] = useState(false);
 
   const isOSMWaterBody = selectedWaterBody.id.startsWith('osm-');
   const isSection = selectedWaterBody.type === 'section';
@@ -55,9 +56,10 @@ export default function CreateActivityConfirmScreen({
     try {
       setLoadingPaddleTypes(true);
       const types = await paddleTypeService.getUserPaddleTypes();
-      setPaddleTypes(types);
+      setPaddleTypes(types || []);
     } catch (error) {
       console.error('Failed to load paddle types:', error);
+      setPaddleTypes([]); // Ensure paddleTypes is always an array
     } finally {
       setLoadingPaddleTypes(false);
     }
@@ -253,22 +255,72 @@ export default function CreateActivityConfirmScreen({
               <ActivityIndicator size="small" color="#0ea5e9" />
             </View>
           ) : (
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={selectedPaddleType}
-                onValueChange={(itemValue) => setSelectedPaddleType(itemValue)}
-                style={styles.picker}
+            <>
+              <TouchableOpacity
+                style={styles.pickerButton}
+                onPress={() => setShowPaddleTypePicker(true)}
               >
-                <Picker.Item label="Select paddle type..." value="" />
-                {paddleTypes.map((type) => (
-                  <Picker.Item
-                    key={type._id}
-                    label={type.displayName || type.name}
-                    value={type.name}
-                  />
-                ))}
-              </Picker>
-            </View>
+                <Text style={[styles.pickerButtonText, !selectedPaddleType && styles.placeholderText]}>
+                  {selectedPaddleType 
+                    ? paddleTypes.find(t => t.name === selectedPaddleType)?.displayName || selectedPaddleType
+                    : 'Select paddle type...'}
+                </Text>
+                <Text style={styles.dropdownArrow}>▼</Text>
+              </TouchableOpacity>
+              
+              {/* Paddle Type Picker Modal */}
+              <Modal
+                visible={showPaddleTypePicker}
+                transparent={true}
+                animationType="slide"
+                onRequestClose={() => setShowPaddleTypePicker(false)}
+              >
+                <TouchableOpacity 
+                  style={styles.modalOverlay}
+                  activeOpacity={1}
+                  onPress={() => setShowPaddleTypePicker(false)}
+                >
+                  <View style={styles.modalContent}>
+                    <View style={styles.modalHeader}>
+                      <Text style={styles.modalTitle}>Select Paddle Type</Text>
+                      <TouchableOpacity onPress={() => setShowPaddleTypePicker(false)}>
+                        <Text style={styles.modalClose}>✕</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <ScrollView style={styles.pickerScrollView}>
+                      <TouchableOpacity
+                        style={styles.pickerOption}
+                        onPress={() => {
+                          setSelectedPaddleType('');
+                          setShowPaddleTypePicker(false);
+                        }}
+                      >
+                        <Text style={[styles.pickerOptionText, !selectedPaddleType && styles.selectedOption]}>
+                          Select paddle type...
+                        </Text>
+                      </TouchableOpacity>
+                      {(paddleTypes || []).map((type) => (
+                        <TouchableOpacity
+                          key={type._id}
+                          style={styles.pickerOption}
+                          onPress={() => {
+                            setSelectedPaddleType(type.name);
+                            setShowPaddleTypePicker(false);
+                          }}
+                        >
+                          <Text style={[
+                            styles.pickerOptionText,
+                            selectedPaddleType === type.name && styles.selectedOption
+                          ]}>
+                            {type.displayName || type.name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                </TouchableOpacity>
+              </Modal>
+            </>
           )}
           <Text style={styles.helpText}>What type of paddling was this?</Text>
         </View>
@@ -541,6 +593,74 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     marginTop: 4,
     fontStyle: 'italic',
+  },
+  pickerButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    padding: 12,
+  },
+  pickerButtonText: {
+    fontSize: 16,
+    color: '#111827',
+    flex: 1,
+  },
+  placeholderText: {
+    color: '#9ca3af',
+  },
+  dropdownArrow: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginLeft: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '70%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  modalClose: {
+    fontSize: 24,
+    color: '#6b7280',
+    padding: 4,
+  },
+  pickerScrollView: {
+    maxHeight: 400,
+  },
+  pickerOption: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  pickerOptionText: {
+    fontSize: 16,
+    color: '#111827',
+  },
+  selectedOption: {
+    color: '#0ea5e9',
+    fontWeight: '600',
   },
   footer: {
     padding: 16,
