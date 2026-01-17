@@ -43,7 +43,15 @@ export const activityService = {
     latitude: number
     longitude: number
     sharedWaterBodyId?: string
-    sharedWaterBodySectionId?: string
+    sectionId?: string
+    sectionName?: string
+    waterLevel?: string
+    notes?: string
+    photoUri?: string
+    paddleType?: string
+    distance?: number
+    movingTime?: number
+    startDate?: string
   }): Promise<ApiResponse<Activity>> {
     const response = await api.post('/activities/manual', data)
     return response.data
@@ -71,7 +79,7 @@ export const activityService = {
   async selectWaterBody(
     activityId: string,
     data: {
-      sharedWaterBodySectionId?: string
+      sectionId?: string
       sharedWaterBodyId?: string
       waterBody?: any
     }

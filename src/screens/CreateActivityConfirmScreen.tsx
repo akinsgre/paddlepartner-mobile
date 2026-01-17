@@ -15,11 +15,22 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { activityService, paddleTypeService } from '../services';
 import api from '../services/api';
 import ENV from '../config/environment';
-import type { WaterBodySearchResult } from '../services/waterBodyService';
 import type { PaddleType } from '../types';
 
+interface WaterBodySelection {
+  source: string;
+  sharedWaterBodyId?: string;
+  sectionId?: string;
+  sectionIndex?: number;
+  sectionName?: string;
+  name?: string;
+  type?: string;
+  osmId?: string;
+  osmData?: any;
+}
+
 interface CreateActivityConfirmScreenProps {
-  selectedWaterBody: WaterBodySearchResult;
+  selectedWaterBody: WaterBodySelection;
   location: { latitude: number; longitude: number };
   onBack: () => void;
   onActivityCreated: () => void;
@@ -44,8 +55,8 @@ export default function CreateActivityConfirmScreen({
   const [loadingPaddleTypes, setLoadingPaddleTypes] = useState(true);
   const [showPaddleTypePicker, setShowPaddleTypePicker] = useState(false);
 
-  const isOSMWaterBody = selectedWaterBody.id.startsWith('osm-');
-  const isSection = selectedWaterBody.type === 'section';
+  const isOSMWaterBody = selectedWaterBody.source === 'osm';
+  const isSection = !!selectedWaterBody.sectionId;
 
   // Load paddle types on mount
   useEffect(() => {
@@ -69,7 +80,8 @@ export default function CreateActivityConfirmScreen({
     try {
       setLoading(true);
 
-      let sharedWaterBodyId: string;
+      let sharedWaterBodyId: string | undefined;
+      let sectionIdToSend: string | undefined;
       let finalSectionName: string | undefined;
       let activityLocation: { latitude: number; longitude: number };
 
@@ -77,8 +89,9 @@ export default function CreateActivityConfirmScreen({
         // For OSM water bodies, first check if it already exists, then create if needed
         console.log('📋 Processing OSM water body...');
         
-        // Extract OSM ID and type from the id string: "osm-way-123456"
-        const [, osmType, osmId] = selectedWaterBody.id.split('-');
+        // Extract OSM ID from osmData
+        const osmId = selectedWaterBody.osmId;
+        const osmType = selectedWaterBody.osmData?.osmType || selectedWaterBody.type;
         
         // For OSM water bodies, use the GPS/map override location from prop
         activityLocation = location;
@@ -125,25 +138,19 @@ export default function CreateActivityConfirmScreen({
           console.log(`✅ Created SharedWaterBody: ${sharedWaterBodyId}`);
         }
       } else {
-        // For SharedWaterBody (with or without section)
-        const waterBodyId = selectedWaterBody.sharedWaterBody?._id;
-        if (!waterBodyId) {
-          throw new Error('Invalid water body selection');
+        // For SharedWaterBody (with or without section) - use the new structure
+        if (!selectedWaterBody.sharedWaterBodyId) {
+          throw new Error('Invalid water body selection - missing ID');
         }
-        sharedWaterBodyId = waterBodyId;
+        sharedWaterBodyId = selectedWaterBody.sharedWaterBodyId;
         
-        // Use water body's database location for existing shared water bodies
-        const coords = selectedWaterBody.sharedWaterBody?.location?.coordinates;
-        if (!coords || coords.length !== 2) {
-          throw new Error('Water body missing location coordinates');
-        }
-        activityLocation = {
-          longitude: coords[0],
-          latitude: coords[1],
-        };
+        // Use GPS location from prop
+        activityLocation = location;
         
-        if (isSection && selectedWaterBody.section?.sectionName) {
-          finalSectionName = selectedWaterBody.section.sectionName;
+        // If a section was selected, use its ID
+        if (isSection && selectedWaterBody.sectionId) {
+          sectionIdToSend = selectedWaterBody.sectionId;
+          finalSectionName = selectedWaterBody.sectionName;
         }
       }
 
@@ -163,6 +170,12 @@ export default function CreateActivityConfirmScreen({
         activityData.notes = notes.trim();
       }
 
+      // Send sectionId for direct reference (normalized approach)
+      if (sectionIdToSend) {
+        activityData.sectionId = sectionIdToSend;
+      }
+
+      // Also send sectionName for backward compatibility / fallback
       if (finalSectionName) {
         activityData.sectionName = finalSectionName;
       }
@@ -176,6 +189,10 @@ export default function CreateActivityConfirmScreen({
       }
 
       console.log('📤 Creating manual activity with data:', activityData);
+      console.log('🔍 Debug - isSection:', isSection);
+      console.log('🔍 Debug - selectedWaterBody.sectionId:', selectedWaterBody.sectionId);
+      console.log('🔍 Debug - sectionIdToSend:', sectionIdToSend);
+      console.log('🔍 Debug - activityData.sectionId:', activityData.sectionId);
 
       await activityService.createManualActivity(activityData);
 
@@ -335,7 +352,7 @@ export default function CreateActivityConfirmScreen({
               <Text style={styles.collapsibleHeaderTitle}>Water Body Details</Text>
               <Text style={styles.collapsibleHeaderSummary}>
                 {selectedWaterBody.name}
-                {(isSection && !isOSMWaterBody && selectedWaterBody.section?.sectionName) && ` • ${selectedWaterBody.section.sectionName}`}
+                {(isSection && !isOSMWaterBody && selectedWaterBody.sectionName) && ` • ${selectedWaterBody.sectionName}`}
                 {waterLevel && ` • ${waterLevel}`}
               </Text>
             </View>
@@ -360,7 +377,7 @@ export default function CreateActivityConfirmScreen({
                 <View style={styles.collapsibleFieldContainer}>
                   <Text style={styles.label}>Section</Text>
                   <View style={styles.readOnlyField}>
-                    <Text style={styles.readOnlyText}>{selectedWaterBody.section?.sectionName}</Text>
+                    <Text style={styles.readOnlyText}>{selectedWaterBody.sectionName}</Text>
                   </View>
                 </View>
               )}

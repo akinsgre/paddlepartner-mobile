@@ -6,17 +6,27 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  FlatList,
   TextInput,
   Platform,
 } from 'react-native';
 import * as Location from 'expo-location';
-import { waterBodyService } from '../services';
-import type { WaterBodySearchResult, OSMStatus } from '../services/waterBodyService';
+import WaterBodySelectionList from '../components/WaterBodySelectionList';
+
+interface WaterBodySelection {
+  source: string;
+  sharedWaterBodyId?: string;
+  sectionId?: string;
+  sectionIndex?: number;
+  sectionName?: string;
+  name?: string;
+  type?: string;
+  osmId?: string;
+  osmData?: any;
+}
 
 interface CreateActivityScreenProps {
   onContinue: (
-    waterBody: WaterBodySearchResult,
+    waterBodySelection: WaterBodySelection,
     location: { latitude: number; longitude: number }
   ) => void;
   onOpenMapPicker: (currentLocation: { latitude: number; longitude: number }) => void;
@@ -26,13 +36,8 @@ interface CreateActivityScreenProps {
 
 export default function CreateActivityScreen({ onContinue, onOpenMapPicker, onCancel, mapOverrideLocation: externalMapOverride }: CreateActivityScreenProps) {
   const [loadingLocation, setLoadingLocation] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
   const [gpsLocation, setGpsLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [waterBodies, setWaterBodies] = useState<WaterBodySearchResult[]>([]);
-  const [selectedWaterBody, setSelectedWaterBody] = useState<WaterBodySearchResult | null>(null);
-  const [osmStatus, setOsmStatus] = useState<OSMStatus | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [showOSM, setShowOSM] = useState(true); // Toggle for OSM results
+  const [selectedWaterBody, setSelectedWaterBody] = useState<WaterBodySelection | null>(null);
 
   // Use external map override from parent if provided, otherwise GPS
   const location = externalMapOverride || gpsLocation;
@@ -41,12 +46,6 @@ export default function CreateActivityScreen({ onContinue, onOpenMapPicker, onCa
   useEffect(() => {
     getCurrentLocation();
   }, []);
-
-  useEffect(() => {
-    if (location) {
-      searchWaterBodies();
-    }
-  }, [location, searchQuery]);
 
   const getCurrentLocation = async () => {
     try {
@@ -101,61 +100,20 @@ export default function CreateActivityScreen({ onContinue, onOpenMapPicker, onCa
     }
   };
 
-  const searchWaterBodies = async () => {
-    if (!location) {
-      console.warn('Cannot search water bodies: location not available');
-      return;
-    }
-      // FOR TESTING: Use fake coordinates in development mode
-    //   if (__DEV__) {
-    //     console.log('🧪 Using test coordinates for development');
-    //     setLocation({
-    //       latitude: 35.886272,
-    //       longitude: -82.82698
-    //     });
-    //     setLoadingLocation(false);
-    //     return;
-    //   }
-    if (!location.latitude || !location.longitude) {
-      console.warn('Cannot search water bodies: invalid coordinates', location);
-      Alert.alert(
-        'Location Error',
-        'Your location coordinates are invalid. Please close and reopen this screen.',
-        [{ text: 'OK', onPress: onCancel }]
-      );
-      return;
-    }
-
-    console.log('🔍 Searching water bodies at:', location.latitude, location.longitude);
+  const handleWaterBodySelect = (selection: WaterBodySelection) => {
+    console.log('🎯 CreateActivityScreen.handleWaterBodySelect:', {
+      sectionId: selection.sectionId,
+      sectionName: selection.sectionName,
+      waterBodyId: selection.sharedWaterBodyId,
+      fullSelection: selection
+    });
+    setSelectedWaterBody(selection);
     
-    try {
-      const response = await waterBodyService.searchCombined(
-        location.latitude,
-        location.longitude,
-        searchQuery || undefined,
-        !!mapOverrideLocation // true if map-selected, false if GPS
-      );
-      console.log('✅ Water body search results:', response.results.length, 'found');
-      if (response.results.length > 0) {
-        console.log('First result:', response.results[0]);
-      }
-      setWaterBodies(response.results);
-      setOsmStatus(response.osmStatus || null);
-    } catch (error: any) {
-      console.error('❌ Error searching water bodies:', error);
-      console.error('Error details:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      });
-      Alert.alert(
-        'Search Error',
-        error.response?.data?.error || error.message || 'Failed to search for water bodies. Please try again.',
-        [
-          { text: 'Cancel', onPress: onCancel },
-          { text: 'Retry', onPress: searchWaterBodies }
-        ]
-      );
+    // Auto-advance to confirm screen when a selection is made
+    if (location) {
+      onContinue(selection, location);
+    } else {
+      Alert.alert('Error', 'Location is required');
     }
   };
 
@@ -178,61 +136,16 @@ export default function CreateActivityScreen({ onContinue, onOpenMapPicker, onCa
     onContinue(selectedWaterBody, location);
   };
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    setSelectedWaterBody(null); // Clear selection on refresh
-    await searchWaterBodies();
-    setRefreshing(false);
-  };
-
   const handleOpenMapPicker = () => {
     if (!location) return;
     onOpenMapPicker(location);
   };
 
   const handleClearMapOverride = () => {
-    onOpenMapPicker(gpsLocation!); // This will trigger parent to clear and reset
-    setSelectedWaterBody(null); // Clear selection when changing location
-  };
-
-  // This will be called from HomeScreen after map picker returns
-  useEffect(() => {
-    // External update handler would go here if needed
-  }, []);
-
-  const renderWaterBodyItem = ({ item }: { item: WaterBodySearchResult }) => {
-    const isOSM = item.id.startsWith('osm-');
-    const isCommunity = !isOSM;
-    
-    return (
-      <TouchableOpacity
-        style={[ 
-          styles.waterBodyItem,
-          selectedWaterBody?.id === item.id && styles.selectedWaterBodyItem,
-        ]}
-        onPress={() => setSelectedWaterBody(item)}
-      >
-        <View style={styles.waterBodyInfo}>
-          <View style={styles.waterBodyNameRow}>
-            {isCommunity && <Text style={styles.communityIcon}>👥</Text>}
-            {isOSM && <Text style={styles.osmIcon}>🗺️</Text>}
-            <Text style={styles.waterBodyName}>
-              {item.name}
-            </Text>
-          </View>
-          <Text style={styles.waterBodyType}>
-            {item.distance !== undefined && `${waterBodyService.formatDistance(item.distance)}`}
-            {isCommunity && <Text style={styles.communityLabel}> • Community</Text>}
-            {isOSM && <Text style={styles.osmLabel}> • OSM</Text>}
-          </Text>
-        </View>
-        {selectedWaterBody?.id === item.id && (
-          <View style={styles.checkmark}>
-            <Text style={styles.checkmarkText}>✓</Text>
-          </View>
-        )}
-      </TouchableOpacity>
-    );
+    if (gpsLocation) {
+      onOpenMapPicker(gpsLocation); // This will trigger parent to clear and reset
+      setSelectedWaterBody(null); // Clear selection when changing location
+    }
   };
 
   if (loadingLocation) {
@@ -280,32 +193,6 @@ export default function CreateActivityScreen({ onContinue, onOpenMapPicker, onCa
           Choose the body of water where you paddled
         </Text>
 
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search water bodies..."
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        
-        {/* OSM Toggle */}
-        <View style={styles.toggleContainer}>
-          <Text style={styles.toggleLabel}>
-            {searchQuery ? 'Searching shared water bodies only' : 'Showing nearby water bodies'}
-          </Text>
-          {!searchQuery && (
-            <TouchableOpacity 
-              style={styles.toggleButton}
-              onPress={() => setShowOSM(!showOSM)}
-            >
-              <Text style={styles.toggleButtonText}>
-                {showOSM ? 'Hide OSM' : 'Show OSM'}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
         {/* Map Override Location Banner */}
         {mapOverrideLocation && (
           <View style={styles.locationOverrideBanner}>
@@ -327,46 +214,14 @@ export default function CreateActivityScreen({ onContinue, onOpenMapPicker, onCa
           </View>
         )}
 
-        {/* OSM Status Banner */}
-        {osmStatus && !osmStatus.success && (
-          <View style={styles.osmErrorBanner}>
-            <View style={styles.osmErrorContent}>
-              <Text style={styles.osmErrorIcon}>⚠️</Text>
-              <View style={styles.osmErrorTextContainer}>
-                <Text style={styles.osmErrorTitle}>OpenStreetMap Unavailable</Text>
-                <Text style={styles.osmErrorMessage}>
-                  {osmStatus.error || 'Some water bodies may not be shown'}
-                </Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              style={styles.refreshButton}
-              onPress={handleRefresh}
-              disabled={refreshing}
-            >
-              {refreshing ? (
-                <ActivityIndicator size="small" color="#0ea5e9" />
-              ) : (
-                <Text style={styles.refreshButtonText}>Retry</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        )}
-
-        <FlatList
-          data={waterBodies.filter(wb => showOSM || !wb.id.startsWith('osm-'))}
-          renderItem={renderWaterBodyItem}
-          keyExtractor={(item) => item.id}
-          style={styles.list}
-          contentContainerStyle={styles.listContent}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>
-                {searchQuery ? 'No water bodies found' : 'Loading water bodies...'}
-              </Text>
-            </View>
-          }
-        />
+        {/* Water Body Selection List */}
+        <View style={styles.selectionContainer}>
+          <WaterBodySelectionList
+            coordinates={location}
+            onSelect={handleWaterBodySelect}
+            onError={(error) => console.error('Water body selection error:', error)}
+          />
+        </View>
 
         <TouchableOpacity
           style={[
@@ -440,75 +295,12 @@ const styles = StyleSheet.create({
     color: '#6b7280',
     marginBottom: 16,
   },
-  searchInput: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    marginBottom: 8,
-  },
-  helpText: {
-    fontSize: 12,
-    color: '#6b7280',
+  selectionContainer: {
+    flex: 1,
     marginBottom: 16,
-    fontStyle: 'italic',
-  },
-  list: {
-    flex: 1,
-  },
-  listContent: {
-    paddingBottom: 16,
-  },
-  waterBodyItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: '#ffffff',
-    padding: 16,
     borderRadius: 8,
-    marginBottom: 8,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  selectedWaterBodyItem: {
-    borderColor: '#0ea5e9',
-    backgroundColor: '#eff6ff',
-  },
-  waterBodyInfo: {
-    flex: 1,
-  },
-  waterBodyName: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  waterBodyType: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  checkmark: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#0ea5e9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkmarkText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  emptyContainer: {
-    padding: 32,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
+    overflow: 'hidden',
   },
   continueButton: {
     backgroundColor: '#0ea5e9',
@@ -555,54 +347,6 @@ const styles = StyleSheet.create({
   retryButtonText: {
     color: '#ffffff',
     fontSize: 16,
-    fontWeight: '600',
-  },
-  osmErrorBanner: {
-    backgroundColor: '#fef3c7',
-    borderWidth: 1,
-    borderColor: '#f59e0b',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  osmErrorContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  osmErrorIcon: {
-    fontSize: 20,
-    marginRight: 8,
-  },
-  osmErrorTextContainer: {
-    flex: 1,
-  },
-  osmErrorTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#92400e',
-    marginBottom: 2,
-  },
-  osmErrorMessage: {
-    fontSize: 12,
-    color: '#92400e',
-  },
-  refreshButton: {
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: '#f59e0b',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-    minWidth: 60,
-    alignItems: 'center',
-  },
-  refreshButtonText: {
-    color: '#f59e0b',
-    fontSize: 14,
     fontWeight: '600',
   },
   locationOverrideBanner: {
@@ -673,54 +417,5 @@ const styles = StyleSheet.create({
   },
   floatingMapButtonIcon: {
     fontSize: 28,
-  },
-  waterBodyNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  communityIcon: {
-    fontSize: 16,
-    marginRight: 6,
-  },
-  osmIcon: {
-    fontSize: 16,
-    marginRight: 6,
-  },
-  communityLabel: {
-    fontSize: 12,
-    color: '#10b981',
-    fontWeight: '600',
-  },
-  osmLabel: {
-    fontSize: 12,
-    color: '#6366f1',
-    fontWeight: '600',
-  },
-  toggleContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginBottom: 8,
-  },
-  toggleLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-    flex: 1,
-  },
-  toggleButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: '#f3f4f6',
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-  },
-  toggleButtonText: {
-    fontSize: 12,
-    color: '#374151',
-    fontWeight: '600',
   },
 });
