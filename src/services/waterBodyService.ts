@@ -27,10 +27,18 @@ export interface SharedWaterBodySection {
 }
 
 export interface WaterBodySearchResult {
-  type: 'shared' | 'section'
+  type?: 'shared' | 'section' | 'osm'
   id: string
   name: string
   distance?: number
+  source?: string
+  sharedWaterBodyId?: string
+  sectionId?: string
+  sectionIndex?: number
+  sectionName?: string
+  osmId?: string
+  osmData?: any
+  coordinates?: any
   sharedWaterBody?: SharedWaterBody
   section?: SharedWaterBodySection
 }
@@ -107,59 +115,27 @@ export const waterBodyService = {
     candidates.forEach((candidate: any) => {
       console.log('Processing candidate:', candidate);
       
-      // Handle both response formats:
-      // - Location search: waterBodyId, sectionId, sectionName
-      // - Name search: sharedWaterBodyId, sectionId, section
+      // Map backend response to WaterBodySearchResult format
       const waterBodyId = candidate.waterBodyId || candidate.sharedWaterBodyId;
       const sectionId = candidate.sectionId;
       const sectionName = candidate.sectionName || candidate.section;
+      const sectionIndex = candidate.sectionIndex;
+      const source = candidate.source || 'shared_database';
       
-      if (sectionName && sectionId) {
-        // SharedWaterBody section - format as "Water Body (Section)"
-        results.push({
-          type: 'section',
-          id: sectionId, // MongoDB ObjectId - unique
-          name: `${candidate.name} (${sectionName})`,
-          sharedWaterBody: {
-            _id: waterBodyId,
-            name: candidate.name,
-            location: { type: 'Point', coordinates: candidate.coordinates || candidate.sectionCoordinates || [0, 0] }
-          },
-          section: {
-            _id: sectionId,
-            sharedWaterBody: waterBodyId,
-            sectionName: sectionName,
-            location: { type: 'Point', coordinates: candidate.coordinates || candidate.sectionCoordinates || [0, 0] }
-          },
-          distance: candidate.distance
-        });
-      } else if (candidate.osmId) {
-        // OSM candidate - use osmId + osmType for uniqueness
-        results.push({
-          type: 'shared',
-          id: `osm-${candidate.osmType}-${candidate.osmId}`, // Unique OSM identifier
-          name: candidate.name,
-          sharedWaterBody: {
-            _id: candidate.osmId?.toString() || '',
-            name: candidate.name,
-            location: { type: 'Point', coordinates: candidate.coordinates || [0, 0] }
-          },
-          distance: candidate.distance
-        });
-      } else if (waterBodyId) {
-        // SharedWaterBody without section
-        results.push({
-          type: 'shared',
-          id: waterBodyId, // MongoDB ObjectId - unique
-          name: candidate.name,
-          sharedWaterBody: {
-            _id: waterBodyId,
-            name: candidate.name,
-            location: { type: 'Point', coordinates: candidate.coordinates || [0, 0] }
-          },
-          distance: candidate.distance
-        });
-      }
+      results.push({
+        id: candidate.osmId ? `osm-${candidate.osmId}` : (sectionId || waterBodyId || candidate.id),
+        name: candidate.name,
+        type: candidate.type,
+        distance: candidate.distance,
+        source: source,
+        sharedWaterBodyId: waterBodyId,
+        sectionId: sectionId,
+        sectionIndex: sectionIndex,
+        sectionName: sectionName,
+        osmId: candidate.osmId,
+        osmData: candidate.osmData,
+        coordinates: candidate.coordinates,
+      });
     });
 
     results.sort((a, b) => {
