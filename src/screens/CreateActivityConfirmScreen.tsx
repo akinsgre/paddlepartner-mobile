@@ -540,6 +540,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
+    color: '#111827',
   },
   notesInput: {
     minHeight: 80,
@@ -715,6 +716,7 @@ const styles = StyleSheet.create({
   },
   dateButtonIcon: {
     fontSize: 20,
+    color: '#6b7280',
   },
   datePickerDoneButton: {
     backgroundColor: '#0ea5e9',

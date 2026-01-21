@@ -368,6 +368,7 @@ const styles = StyleSheet.create({
   locationOverrideIcon: {
     fontSize: 20,
     marginRight: 8,
+    color: '#1e40af',
   },
   locationOverrideTextContainer: {
     flex: 1,
@@ -417,5 +418,6 @@ const styles = StyleSheet.create({
   },
   floatingMapButtonIcon: {
     fontSize: 28,
+    color: '#ffffff',
   },
 });

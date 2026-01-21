@@ -11,11 +11,13 @@ import {
   RefreshControl,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { authService, activityService } from '../services';
+import { authService, activityService, notificationService } from '../services';
 import CreateActivityScreen from './CreateActivityScreen';
 import MapLocationPickerScreen from './MapLocationPickerScreen';
 import CreateActivityConfirmScreen from './CreateActivityConfirmScreen';
 import ActivityDetailScreen from './ActivityDetailScreen';
+import NotificationsScreen from './NotificationsScreen';
+import { usePushNotifications } from '../hooks/usePushNotifications';
 import type { User, Activity } from '../types';
 import type { WaterBodySearchResult } from '../services/waterBodyService';
 
@@ -31,7 +33,7 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
-  const [activeTab, setActiveTab] = useState<'all' | 'my'>('all');
+  const [activeTab, setActiveTab] = useState<'following' | 'my' | 'notifications'>('following');
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -42,10 +44,19 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
   const [selectedLocation, setSelectedLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [mapOverrideLocation, setMapOverrideLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const createActivityScreenRef = useState<any>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Setup push notifications
+  const pushNotificationState = usePushNotifications((notification) => {
+    console.log('📬 New notification received:', notification);
+    // Refresh unread count when notification is received
+    loadUnreadCount();
+  });
 
   useEffect(() => {
     loadUser();
     loadActivities();
+    loadUnreadCount();
   }, []);
 
   const loadUser = async () => {
@@ -59,12 +70,29 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
     }
   };
 
+  const loadUnreadCount = async () => {
+    try {
+      const count = await notificationService.getUnreadCount();
+      setUnreadCount(count);
+    } catch (error) {
+      console.error('Failed to load unread count:', error);
+      // Don't set to 0 on error, keep existing count
+    }
+  };
+
   const loadActivities = async (page = 1, append = false) => {
     try {
       console.log(`📋 Loading ${activeTab} activities... page ${page}`);
       
+      // Don't load activities for notifications tab yet
+      if (activeTab === 'notifications') {
+        setActivities([]);
+        setHasMore(false);
+        return;
+      }
+      
       let response: any;
-      if (activeTab === 'all') {
+      if (activeTab === 'following') {
         // Load activities from followed users and current user
         response = await activityService.getFollowingActivities({ 
           page, 
@@ -119,7 +147,7 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
     setLoadingMore(false);
   };
 
-  const handleTabChange = (tab: 'all' | 'my') => {
+  const handleTabChange = (tab: 'following' | 'my' | 'notifications') => {
     if (tab === activeTab) return;
     
     setActiveTab(tab);
@@ -130,7 +158,27 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
 
   useEffect(() => {
     loadActivities(1, false);
+    // Refresh unread count when switching to/from notifications tab
+    if (activeTab === 'notifications') {
+      loadUnreadCount();
+    }
   }, [activeTab]);
+
+  const handleNotificationPress = () => {
+    setActiveTab('notifications');
+  };
+
+  const handleNavigateToActivity = (activityId: string) => {
+    // Find the activity and show detail
+    const activity = activities.find(a => a._id === activityId);
+    if (activity) {
+      setSelectedActivity(activity);
+      setShowActivityDetail(true);
+    } else {
+      // If not in current list, could fetch it
+      Alert.alert('Activity not found', 'This activity may have been deleted.');
+    }
+  };
 
   const handleLogout = async () => {
     Alert.alert(
@@ -204,57 +252,89 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
 
   return (
     <View style={styles.container}>
+      {/* Compact Header with Logo and Create Button */}
       <View style={styles.header}>
-        <MaterialCommunityIcons name="kayaking" size={60} color="#ffffff" style={styles.logo} />
-        <Text style={styles.title}>Paddle Partner</Text>
-        <Text style={styles.subtitle}>Mobile App</Text>
+        <View style={styles.headerContent}>
+          <View style={styles.logoContainer}>
+            <MaterialCommunityIcons name="kayaking" size={32} color="#ffffff" style={styles.logo} />
+            <Text style={styles.title}>Paddle Partner</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.headerCreateButton}
+            onPress={() => setShowCreateActivity(true)}
+            testID="create-activity-button"
+          >
+            <Text style={styles.headerCreateIcon}>+</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <View style={styles.content}>
-        <View style={styles.welcomeCard}>
-          <Text style={styles.welcomeText}>Welcome back!</Text>
-          {user && (
-            <>
-              <Text style={styles.userName}>{user.name}</Text>
-              <Text style={styles.userEmail}>{user.email}</Text>
-            </>
-          )}
-        </View>
-
+      {/* Tab Bar */}
+      <View style={styles.tabsContainer}>
         <TouchableOpacity
-          style={styles.createActivityButton}
-          onPress={() => setShowCreateActivity(true)}
-          testID="create-activity-button"
+          style={[styles.tab, activeTab === 'following' && styles.tabActive]}
+          onPress={() => handleTabChange('following')}
+          testID="following-tab"
         >
-          <Text style={styles.createActivityIcon}>+</Text>
-          <Text style={styles.createActivityText}>Create Activity</Text>
+          <MaterialCommunityIcons 
+            name="account-group" 
+            size={24} 
+            color={activeTab === 'following' ? '#0ea5e9' : '#64748b'} 
+          />
+          <Text style={[styles.tabText, activeTab === 'following' && styles.tabTextActive]}>
+            Following
+          </Text>
         </TouchableOpacity>
-
-        {/* Activity Feed with Tabs */}
-        <View style={styles.activityListContainer}>
-          <View style={styles.tabsContainer}>
-            <TouchableOpacity
-              style={[styles.tab, activeTab === 'all' && styles.tabActive]}
-              onPress={() => handleTabChange('all')}
-              testID="following-tab"
-            >
-              <Text style={[styles.tabText, activeTab === 'all' && styles.tabTextActive]}>
-                Following
-              </Text>
-            </TouchableOpacity>
-            {user && (
-              <TouchableOpacity
-                style={[styles.tab, activeTab === 'my' && styles.tabActive]}
-                onPress={() => handleTabChange('my')}
-                testID="my-activities-tab"
-              >
-                <Text style={[styles.tabText, activeTab === 'my' && styles.tabTextActive]}>
-                  My Activities
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'my' && styles.tabActive]}
+          onPress={() => handleTabChange('my')}
+          testID="my-activities-tab"
+        >
+          <MaterialCommunityIcons 
+            name="account" 
+            size={24} 
+            color={activeTab === 'my' ? '#0ea5e9' : '#64748b'} 
+          />
+          <Text style={[styles.tabText, activeTab === 'my' && styles.tabTextActive]}>
+            My Activities
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'notifications' && styles.tabActive]}
+          onPress={() => handleTabChange('notifications')}
+          testID="notifications-tab"
+        >
+          <View style={styles.tabIconContainer}>
+            <MaterialCommunityIcons 
+              name="bell" 
+              size={24} 
+              color={activeTab === 'notifications' ? '#0ea5e9' : '#64748b'} 
+            />
+            {unreadCount > 0 && (
+              <View style={styles.tabBadge}>
+                <Text style={styles.tabBadgeText}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
                 </Text>
-              </TouchableOpacity>
+              </View>
             )}
           </View>
-          
+          <Text style={[styles.tabText, activeTab === 'notifications' && styles.tabTextActive]}>
+            Notifications
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Tab Content */}
+      <View style={styles.content}>
+        {activeTab === 'notifications' ? (
+          <NotificationsScreen
+            onNavigateToActivity={handleNavigateToActivity}
+            onNavigateToProfile={(googleId) => {
+              // Could navigate to user profile in future
+              console.log('Navigate to profile:', googleId);
+            }}
+          />
+        ) : (
           <FlatList
             testID="activities-list"
             data={activities}
@@ -307,18 +387,18 @@ export default function HomeScreen({ onLogout }: HomeScreenProps) {
               <View style={styles.emptyState}>
                 <MaterialCommunityIcons name="kayaking" size={64} color="#64748b" style={styles.emptyStateIcon} />
                 <Text style={styles.emptyStateText}>
-                  {activeTab === 'my' ? 'No activities yet' : 'No public activities yet'}
+                  {activeTab === 'my' ? 'No activities yet' : 'No activities from people you follow'}
                 </Text>
                 <Text style={styles.emptyStateSubtext}>
                   {activeTab === 'my' 
                     ? 'Tap the + button above to create your first activity'
-                    : 'Be the first to share an activity!'}
+                    : 'Start following paddlers to see their activities here'}
                 </Text>
               </View>
             }
             contentContainerStyle={styles.activityList}
           />
-        </View>
+        )}
 
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutButtonText}>Logout</Text>
@@ -385,124 +465,33 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#0ea5e9',
     paddingTop: 60,
-    paddingBottom: 30,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  logoContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
   logo: {
-    marginBottom: 10,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#e0f2fe',
-  },
-  content: {
-    flex: 1,
-    padding: 20,
-  },
-  welcomeCard: {
-    backgroundColor: '#ffffff',
-    padding: 24,
-    borderRadius: 12,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  welcomeText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#0c4a6e',
-    marginBottom: 12,
-  },
-  userName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#0369a1',
-    marginBottom: 4,
-  },
-  userEmail: {
-    fontSize: 14,
-    color: '#64748b',
-  },
-  messageCard: {
-    backgroundColor: '#ffffff',
-    padding: 24,
-    borderRadius: 12,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  messageTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#0c4a6e',
-    marginBottom: 12,
-  },
-  messageText: {
-    fontSize: 16,
-    color: '#475569',
-    marginBottom: 12,
-    lineHeight: 24,
-  },
-  featureText: {
-    fontSize: 14,
-    color: '#64748b',
-    marginLeft: 8,
-    marginBottom: 6,
-  },
-  createActivityButton: {
-    backgroundColor: '#0ea5e9',
-    paddingVertical: 20,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginBottom: 20,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  createActivityIcon: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#ffffff',
     marginRight: 8,
   },
-  createActivityText: {
-    fontSize: 18,
-    fontWeight: '600',
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
     color: '#ffffff',
   },
-  logoutButton: {
-    backgroundColor: '#ef4444',
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 12,
+  headerCreateButton: {
+    backgroundColor: '#ffffff',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 'auto',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -512,24 +501,10 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
-  logoutButtonText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  activityListContainer: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+  headerCreateIcon: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#0ea5e9',
   },
   tabsContainer: {
     flexDirection: 'row',
@@ -539,46 +514,74 @@ const styles = StyleSheet.create({
   },
   tab: {
     flex: 1,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
     alignItems: 'center',
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
     marginBottom: -2,
   },
+  tabIconContainer: {
+    position: 'relative',
+  },
+  tabBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -8,
+    backgroundColor: '#ef4444',
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ffffff',
+  },
+  tabBadgeText: {
+    color: '#ffffff',
+    fontSize: 9,
+    fontWeight: 'bold',
+    paddingHorizontal: 3,
+  },
   tabActive: {
     borderBottomColor: '#0ea5e9',
   },
   tabText: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: '500',
     color: '#64748b',
+    marginTop: 4,
   },
   tabTextActive: {
     color: '#0ea5e9',
     fontWeight: '600',
   },
-  activityListTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#0c4a6e',
-    marginBottom: 12,
+  content: {
+    flex: 1,
+    padding: 16,
   },
   activityList: {
     flexGrow: 1,
-    padding: 16,
   },
   loadingMore: {
     paddingVertical: 20,
     alignItems: 'center',
   },
   activityCard: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#ffffff',
     padding: 16,
     borderRadius: 8,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   activityHeader: {
     flexDirection: 'row',
@@ -603,16 +606,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#64748b',
   },
-  activitySection: {
-    fontSize: 14,
-    color: '#475569',
-    marginBottom: 4,
-  },
-  activityDetail: {
-    fontSize: 12,
-    color: '#64748b',
-    marginBottom: 2,
-  },
   emptyState: {
     flex: 1,
     alignItems: 'center',
@@ -633,5 +626,26 @@ const styles = StyleSheet.create({
     color: '#64748b',
     textAlign: 'center',
     paddingHorizontal: 40,
+  },
+  logoutButton: {
+    backgroundColor: '#ef4444',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  logoutButtonText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#ffffff',
   },
 });
