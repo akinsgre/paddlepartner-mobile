@@ -325,6 +325,7 @@ const styles = StyleSheet.create({
   warningIcon: {
     fontSize: 20,
     marginRight: 8,
+    color: '#92400e',
   },
   warningText: {
     flex: 1,
@@ -352,6 +353,7 @@ const styles = StyleSheet.create({
   errorIcon: {
     fontSize: 48,
     marginBottom: 16,
+    color: '#dc2626',
   },
   errorMessage: {
     fontSize: 14,
