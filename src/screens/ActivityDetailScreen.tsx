@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   Text,
@@ -6,7 +6,11 @@ import {
   TouchableOpacity,
   ScrollView,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
+import { formatDistance } from '../utils/unitConversion';
+import { authService, shareService } from '../services';
 import type { Activity } from '../types';
 
 interface ActivityDetailScreenProps {
@@ -15,6 +19,48 @@ interface ActivityDetailScreenProps {
 }
 
 export default function ActivityDetailScreen({ activity, onBack }: ActivityDetailScreenProps) {
+  const [userUnits, setUserUnits] = useState<'metric' | 'imperial'>('imperial');
+  const [isSharing, setIsSharing] = useState(false);
+
+  useEffect(() => {
+    loadUserPreferences();
+  }, []);
+
+  const loadUserPreferences = async () => {
+    try {
+      const user = await authService.getCurrentUser();
+      if (user?.preferences?.units) {
+        setUserUnits(user.preferences.units);
+      }
+    } catch (error) {
+      console.error('Failed to load user preferences:', error);
+    }
+  };
+
+  const handleShare = async () => {
+    if (!activity._id) {
+      Alert.alert('Error', 'Cannot share this activity');
+      return;
+    }
+
+    try {
+      setIsSharing(true);
+      const result = await shareService.shareActivity({
+        activityId: activity._id,
+        activityName: activity.name
+      });
+
+      if (!result.success) {
+        Alert.alert('Share Failed', result.error || 'Unable to share activity');
+      }
+    } catch (error: any) {
+      console.error('Share error:', error);
+      Alert.alert('Share Failed', error.message || 'Unable to share activity');
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -22,7 +68,17 @@ export default function ActivityDetailScreen({ activity, onBack }: ActivityDetai
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Activity Details</Text>
-        <View style={styles.headerSpacer} />
+        <TouchableOpacity 
+          onPress={handleShare} 
+          style={styles.shareButton}
+          disabled={isSharing}
+        >
+          {isSharing ? (
+            <ActivityIndicator size="small" color="#0ea5e9" />
+          ) : (
+            <Text style={styles.shareButtonText}>📤 Share</Text>
+          )}
+        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
@@ -78,7 +134,7 @@ export default function ActivityDetailScreen({ activity, onBack }: ActivityDetai
               <View style={styles.infoRow}>
                 <Text style={styles.label}>Distance</Text>
                 <Text style={styles.value}>
-                  {(activity.distance / 1000).toFixed(2)} km
+                  {formatDistance(activity.distance, userUnits)}
                 </Text>
               </View>
             )}
@@ -183,6 +239,16 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#111827',
+  },
+  shareButton: {
+    padding: 8,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  shareButtonText: {
+    fontSize: 14,
+    color: '#0ea5e9',
+    fontWeight: '600',
   },
   headerSpacer: {
     width: 60,

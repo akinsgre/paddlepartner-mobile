@@ -218,15 +218,30 @@ export interface InvitedUser {
 // ========================================
 
 export interface PaginatedResponse<T> {
-  docs: T[]
-  totalDocs: number
-  limit: number
-  page: number
-  totalPages: number
-  hasNextPage: boolean
-  hasPrevPage: boolean
-  nextPage: number | null
-  prevPage: number | null
+  success?: boolean
+  activities?: T[]  // Backend uses 'activities' not 'docs'
+  docs?: T[]        // Keep for backward compatibility
+  pagination?: {
+    currentPage: number
+    totalPages: number
+    totalActivities: number
+    hasNextPage: boolean
+    hasPrevPage: boolean
+    limit: number
+  }
+  // Legacy pagination fields for backward compatibility
+  totalDocs?: number
+  limit?: number
+  page?: number
+  totalPages?: number
+  hasNextPage?: boolean
+  hasPrevPage?: boolean
+  nextPage?: number | null
+  prevPage?: number | null
+  // User preferences from backend
+  userPreferences?: {
+    units: 'metric' | 'imperial'
+  }
 }
 
 export interface ApiResponse<T = any> {
