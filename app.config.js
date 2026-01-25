@@ -25,6 +25,7 @@ export default {
     },
     android: {
       package: 'com.paddlepartner.mobile',
+      googleServicesFile: './google-services.json',
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
         backgroundColor: '#0ea5e9',

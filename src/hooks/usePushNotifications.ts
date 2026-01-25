@@ -31,6 +31,12 @@ export function usePushNotifications(onNotificationReceived?: (notification: Not
   const responseListener = useRef<Notifications.Subscription>();
 
   useEffect(() => {
+    // Only register for push notifications on physical devices
+    if (!Device.isDevice) {
+      console.log('⚠️ Push notifications only work on physical devices');
+      return;
+    }
+
     registerForPushNotificationsAsync()
       .then(token => {
         if (token) {
@@ -38,7 +44,8 @@ export function usePushNotifications(onNotificationReceived?: (notification: Not
         }
       })
       .catch(error => {
-        console.error('Failed to register for push notifications:', error);
+        console.error('Error getting push token:', error.message);
+        // Don't crash the app if push notifications fail
         setState(prev => ({ ...prev, error }));
       });
 
@@ -86,7 +93,7 @@ async function registerForPushNotificationsAsync(): Promise<string | undefined> 
     try {
       // Get Expo push token
       const tokenData = await Notifications.getExpoPushTokenAsync({
-        projectId: 'your-project-id', // Replace with your Expo project ID
+        projectId: 'b9f5ea50-2e12-4269-9a00-b9b577a8a536',
       });
       token = tokenData.data;
       
