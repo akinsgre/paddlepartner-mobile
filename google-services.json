@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "928443721414",
+    "project_id": "paddlepartner-5c448",
+    "storage_bucket": "paddlepartner-5c448.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:928443721414:android:77d17ba8ae5d7d89e8d9c7",
+        "android_client_info": {
+          "package_name": "com.paddlepartner.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyClm-5DEKmYkPNkZpfFYJUyDUcoe2K_QUM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

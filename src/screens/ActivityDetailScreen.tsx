@@ -21,6 +21,7 @@ interface ActivityDetailScreenProps {
 export default function ActivityDetailScreen({ activity, onBack }: ActivityDetailScreenProps) {
   const [userUnits, setUserUnits] = useState<'metric' | 'imperial'>('imperial');
   const [isSharing, setIsSharing] = useState(false);
+  const [currentUserGoogleId, setCurrentUserGoogleId] = useState<string | null>(null);
 
   useEffect(() => {
     loadUserPreferences();
@@ -32,32 +33,48 @@ export default function ActivityDetailScreen({ activity, onBack }: ActivityDetai
       if (user?.preferences?.units) {
         setUserUnits(user.preferences.units);
       }
+      if (user?.googleId) {
+        setCurrentUserGoogleId(user.googleId);
+      }
     } catch (error) {
       console.error('Failed to load user preferences:', error);
     }
   };
 
+  // Check if current user owns this activity
+  const isOwnActivity = currentUserGoogleId && activity.userGoogleId === currentUserGoogleId;
+
   const handleShare = async () => {
+    console.log('🔵 Share button pressed! Activity ID:', activity._id);
+    
     if (!activity._id) {
+      console.log('❌ No activity ID');
       Alert.alert('Error', 'Cannot share this activity');
       return;
     }
 
+    console.log('🟢 Starting share process...');
     try {
       setIsSharing(true);
+      console.log('📤 Calling shareService...');
+      
       const result = await shareService.shareActivity({
         activityId: activity._id,
         activityName: activity.name
       });
 
+      console.log('✅ Share result:', result);
+
       if (!result.success) {
+        console.log('⚠️ Share failed:', result.error);
         Alert.alert('Share Failed', result.error || 'Unable to share activity');
       }
     } catch (error: any) {
-      console.error('Share error:', error);
+      console.error('💥 Share error:', error);
       Alert.alert('Share Failed', error.message || 'Unable to share activity');
     } finally {
       setIsSharing(false);
+      console.log('🏁 Share process completed');
     }
   };
 
@@ -68,17 +85,22 @@ export default function ActivityDetailScreen({ activity, onBack }: ActivityDetai
           <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Activity Details</Text>
-        <TouchableOpacity 
-          onPress={handleShare} 
-          style={styles.shareButton}
-          disabled={isSharing}
-        >
-          {isSharing ? (
-            <ActivityIndicator size="small" color="#0ea5e9" />
-          ) : (
-            <Text style={styles.shareButtonText}>📤 Share</Text>
-          )}
-        </TouchableOpacity>
+        {isOwnActivity && (
+          <TouchableOpacity 
+            onPress={handleShare} 
+            style={styles.shareButton}
+            disabled={isSharing}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            {isSharing ? (
+              <ActivityIndicator size="small" color="#0ea5e9" />
+            ) : (
+              <Text style={styles.shareButtonText}>📤 Share</Text>
+            )}
+          </TouchableOpacity>
+        )}
+        {!isOwnActivity && <View style={styles.shareButton} />}
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
