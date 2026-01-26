@@ -8,6 +8,7 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { formatDistance } from '../utils/unitConversion';
 import { authService, shareService } from '../services';
@@ -104,6 +105,17 @@ export default function ActivityDetailScreen({ activity, onBack }: ActivityDetai
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+        {/* Photo */}
+        {activity.photo?.data && (
+          <View style={styles.photoContainer}>
+            <Image
+              source={{ uri: `data:${activity.photo.contentType || 'image/jpeg'};base64,${activity.photo.data}` }}
+              style={styles.photo}
+              resizeMode="cover"
+            />
+          </View>
+        )}
+
         {/* Activity Name */}
         {activity.name && (
           <View style={styles.section}>
@@ -280,6 +292,17 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 16,
+  },
+  photoContainer: {
+    width: '100%',
+    aspectRatio: 4 / 3,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  photo: {
+    width: '100%',
+    height: '100%',
   },
   section: {
     marginBottom: 16,

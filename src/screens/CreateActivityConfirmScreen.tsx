@@ -10,8 +10,11 @@ import {
   Platform,
   ScrollView,
   Modal,
+  Image,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { activityService, paddleTypeService } from '../services';
 import api from '../services/api';
 import ENV from '../config/environment';
@@ -54,6 +57,8 @@ export default function CreateActivityConfirmScreen({
   const [selectedPaddleType, setSelectedPaddleType] = useState<string>('');
   const [loadingPaddleTypes, setLoadingPaddleTypes] = useState(true);
   const [showPaddleTypePicker, setShowPaddleTypePicker] = useState(false);
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photoData, setPhotoData] = useState<string | null>(null);
 
   const isOSMWaterBody = selectedWaterBody.source === 'osm';
   const isSection = !!selectedWaterBody.sectionId;
@@ -74,6 +79,151 @@ export default function CreateActivityConfirmScreen({
     } finally {
       setLoadingPaddleTypes(false);
     }
+  };
+
+  const pickImage = async () => {
+    try {
+      // Request permissions
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Please grant camera roll permissions to attach photos');
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await compressAndSetPhoto(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image');
+    }
+  };
+
+  const takePhoto = async () => {
+    try {
+      // Request permissions
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Please grant camera permissions to take photos');
+        return;
+      }
+
+      // Launch camera
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await compressAndSetPhoto(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Error', 'Failed to take photo');
+    }
+  };
+
+  const compressAndSetPhoto = async (uri: string) => {
+    try {
+      // Get image info first
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      const originalSize = blob.size;
+      
+      console.log(`📸 Original image size: ${(originalSize / 1024 / 1024).toFixed(2)}MB`);
+      
+      // Target size: 2MB (more lenient than 1MB)
+      const targetSizeBytes = 2 * 1024 * 1024;
+      
+      // Determine initial resize dimensions based on original size
+      let maxWidth = 2048;
+      if (originalSize > 10 * 1024 * 1024) {
+        maxWidth = 1920; // Larger files need more aggressive resize
+      } else if (originalSize > 5 * 1024 * 1024) {
+        maxWidth = 2048;
+      }
+      
+      // Try different quality levels until we get under target size
+      const qualityLevels = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4];
+      let bestResult: { uri: string; base64: string; size: number } | null = null;
+      
+      for (const quality of qualityLevels) {
+        const manipResult = await ImageManipulator.manipulateAsync(
+          uri,
+          [{ resize: { width: maxWidth } }],
+          { compress: quality, format: ImageManipulator.SaveFormat.JPEG }
+        );
+
+        const testResponse = await fetch(manipResult.uri);
+        const testBlob = await testResponse.blob();
+        const reader = new FileReader();
+        
+        await new Promise<void>((resolve) => {
+          reader.onloadend = () => {
+            const base64data = reader.result as string;
+            const base64Image = base64data.split(',')[1];
+            const sizeInBytes = (base64Image.length * 3) / 4;
+            
+            console.log(`📊 Quality ${quality}: ${(sizeInBytes / 1024 / 1024).toFixed(2)}MB`);
+            
+            if (sizeInBytes <= targetSizeBytes) {
+              bestResult = {
+                uri: manipResult.uri,
+                base64: base64Image,
+                size: sizeInBytes
+              };
+            }
+            resolve();
+          };
+          reader.readAsDataURL(testBlob);
+        });
+        
+        // If we found a good result, stop trying
+        if (bestResult) break;
+      }
+      
+      if (!bestResult) {
+        Alert.alert(
+          'Photo too large',
+          'Could not compress photo to acceptable size. Please choose a smaller photo or edit it first.'
+        );
+        return;
+      }
+      
+      console.log(`✅ Final size: ${(bestResult.size / 1024 / 1024).toFixed(2)}MB`);
+      setPhotoUri(bestResult.uri);
+      setPhotoData(bestResult.base64);
+      
+    } catch (error) {
+      console.error('Error compressing image:', error);
+      Alert.alert('Error', 'Failed to process image');
+    }
+  };
+
+  const removePhoto = () => {
+    setPhotoUri(null);
+    setPhotoData(null);
+  };
+
+  const showPhotoOptions = () => {
+    Alert.alert(
+      'Add Photo',
+      'Choose a photo source',
+      [
+        { text: 'Take Photo', onPress: takePhoto },
+        { text: 'Choose from Library', onPress: pickImage },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
   };
 
   const handleSave = async () => {
@@ -188,6 +338,14 @@ export default function CreateActivityConfirmScreen({
         activityData.paddleType = selectedPaddleType;
       }
 
+      if (photoData) {
+        activityData.photo = {
+          data: photoData,
+          contentType: 'image/jpeg',
+          uploadedAt: new Date().toISOString(),
+        };
+      }
+
       console.log('📤 Creating manual activity with data:', activityData);
       console.log('🔍 Debug - isSection:', isSection);
       console.log('🔍 Debug - selectedWaterBody.sectionId:', selectedWaterBody.sectionId);
@@ -262,6 +420,31 @@ export default function CreateActivityConfirmScreen({
             autoCorrect={true}
           />
           <Text style={styles.helpText}>Record memories, conditions, or other details</Text>
+        </View>
+
+        {/* Photo Attachment */}
+        <View style={styles.fieldContainer}>
+          <Text style={styles.label}>Photo (Optional)</Text>
+          {photoUri ? (
+            <View style={styles.photoContainer}>
+              <Image source={{ uri: photoUri }} style={styles.photoPreview} />
+              <TouchableOpacity
+                style={styles.removePhotoButton}
+                onPress={removePhoto}
+              >
+                <Text style={styles.removePhotoText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.addPhotoButton}
+              onPress={showPhotoOptions}
+            >
+              <Text style={styles.addPhotoIcon}>📷</Text>
+              <Text style={styles.addPhotoText}>Add Photo</Text>
+            </TouchableOpacity>
+          )}
+          <Text style={styles.helpText}>Attach a photo from your paddle (max 20MB, will be automatically compressed)</Text>
         </View>
 
         {/* Paddle Type */}
@@ -729,5 +912,52 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  photoContainer: {
+    position: 'relative',
+    width: '100%',
+    aspectRatio: 4 / 3,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  photoPreview: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  removePhotoButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  removePhotoText: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  addPhotoButton: {
+    backgroundColor: '#ffffff',
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addPhotoIcon: {
+    fontSize: 48,
+    marginBottom: 8,
+  },
+  addPhotoText: {
+    fontSize: 16,
+    color: '#6b7280',
+    fontWeight: '500',
   },
 });

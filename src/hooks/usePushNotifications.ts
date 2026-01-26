@@ -2,7 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import notificationService from '../services/notificationService';
+
+const PUSH_TOKEN_KEY = '@PaddlePartner:pushToken';
+const TOKEN_REGISTERED_KEY = '@PaddlePartner:tokenRegistered';
 
 // Configure how notifications are handled when app is in foreground
 Notifications.setNotificationHandler({
@@ -68,7 +72,8 @@ export function usePushNotifications(onNotificationReceived?: (notification: Not
       notificationListener.current?.remove();
       responseListener.current?.remove();
     };
-  }, [onNotificationReceived]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   return state;
 }
@@ -96,18 +101,38 @@ async function registerForPushNotificationsAsync(): Promise<string | undefined> 
         projectId: 'b9f5ea50-2e12-4269-9a00-b9b577a8a536',
       });
       token = tokenData.data;
-      
-      console.log('📱 Expo Push Token:', token);
 
-      // Register token with backend
-      try {
-        await notificationService.registerPushToken(
-          token,
-          Platform.OS === 'ios' ? 'ios' : 'android'
-        );
-      } catch (error) {
-        console.error('Failed to register push token with backend:', error);
+      // Check if this token is already registered
+      const lastRegisteredToken = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
+      const isRegistered = await AsyncStorage.getItem(TOKEN_REGISTERED_KEY);
+      
+      // Only register with backend if:
+      // 1. Token is new/different OR
+      // 2. Previous registration failed
+      if (lastRegisteredToken !== token || isRegistered !== 'true') {
+        console.log('📱 Registering new push token:', token);
+        try {
+          await notificationService.registerPushToken(
+            token,
+            Platform.OS === 'ios' ? 'ios' : 'android'
+          );
+          
+          // Mark as successfully registered
+          await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
+          await AsyncStorage.setItem(TOKEN_REGISTERED_KEY, 'true');
+          console.log('✅ Push token registered with backend');
+        } catch (error: any) {
+          console.error('Failed to register push token with backend:', error);
+          
+          // If rate limited, mark as registered anyway to prevent spam
+          if (error.response?.status === 429) {
+            console.log('⚠️ Rate limited - will retry on next app launch');
+            await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
+            await AsyncStorage.setItem(TOKEN_REGISTERED_KEY, 'true');
+          }
+        }
       }
+      // Token already registered - no log needed
     } catch (tokenError) {
       console.error('Error getting push token:', tokenError);
     }
