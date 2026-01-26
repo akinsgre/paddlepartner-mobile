@@ -71,6 +71,12 @@ export interface Activity {
   weather?: ActivityWeather
   notes?: string
   photos?: string[]
+  photo?: {
+    data: string
+    contentType: string
+    uploadedAt: string
+    size?: number
+  }
   isPublic?: boolean
   userGoogleId?: string
   userId?: string
