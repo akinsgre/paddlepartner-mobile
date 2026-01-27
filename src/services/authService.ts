@@ -18,6 +18,8 @@ export const authService = {
   async loginWithGoogle(): Promise<{ success: boolean; user?: User; error?: string }> {
     try {
       console.log('🔐 Step 1: Initializing OAuth session...')
+      console.log('📍 API Base URL:', api.defaults.baseURL)
+      console.log('🌐 Full URL:', `${api.defaults.baseURL}/auth/mobile/google/init`)
       // Step 1: Initialize OAuth session on backend
       const initResponse = await api.get('/auth/mobile/google/init')
       
@@ -84,6 +86,16 @@ export const authService = {
       
     } catch (error) {
       console.error('💥 Login error:', error)
+      if (error instanceof Error) {
+        console.error('💥 Error message:', error.message)
+        console.error('💥 Error stack:', error.stack)
+      }
+      // @ts-ignore - check axios error details
+      if (error.isAxiosError) {
+        console.error('💥 Axios config:', error.config?.url, error.config?.baseURL)
+        console.error('💥 Axios response:', error.response?.status, error.response?.data)
+        console.error('💥 Axios request:', error.request?._response)
+      }
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Authentication failed'

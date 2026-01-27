@@ -79,7 +79,7 @@ class NotificationService {
    */
   async markAllAsRead(): Promise<void> {
     try {
-      await api.patch('/notifications/read-all');
+      await api.put('/notifications/read-all');
     } catch (error) {
       console.error('Failed to mark all notifications as read:', error);
       throw error;
