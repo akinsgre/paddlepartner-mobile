@@ -9,10 +9,22 @@ import {
   Alert,
   ActivityIndicator,
   Image,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { formatDistance } from '../utils/unitConversion';
 import { authService, shareService } from '../services';
+import api from '../services/api';
 import type { Activity } from '../types';
+
+interface Badge {
+  _id: string;
+  badgeId: string;
+  name: string;
+  description: string;
+  tier: string;
+  svgIcon: string;
+}
 
 interface ActivityDetailScreenProps {
   activity: Activity;
@@ -23,9 +35,13 @@ export default function ActivityDetailScreen({ activity, onBack }: ActivityDetai
   const [userUnits, setUserUnits] = useState<'metric' | 'imperial'>('imperial');
   const [isSharing, setIsSharing] = useState(false);
   const [currentUserGoogleId, setCurrentUserGoogleId] = useState<string | null>(null);
+  const [badges, setBadges] = useState<Badge[]>([]);
+  const [showShareOptions, setShowShareOptions] = useState(false);
+  const [selectedBadgeId, setSelectedBadgeId] = useState<string | null>(null);
 
   useEffect(() => {
     loadUserPreferences();
+    loadBadges();
   }, []);
 
   const loadUserPreferences = async () => {
@@ -42,8 +58,39 @@ export default function ActivityDetailScreen({ activity, onBack }: ActivityDetai
     }
   };
 
+  const loadBadges = async () => {
+    if (!activity._id) return;
+    
+    try {
+      console.log('🏆 Loading badges for activity:', activity._id);
+      const response = await api.get(`/badges/activity/${activity._id}`);
+      
+      // Transform UserAchievement objects to Badge objects
+      const achievements = response.data || [];
+      const transformedBadges = achievements
+        .filter((achievement: any) => achievement.badge) // Only include if badge is populated
+        .map((achievement: any) => ({
+          _id: achievement.badge._id,
+          badgeId: achievement.badge.badgeId || achievement.badgeId,
+          name: achievement.badge.name,
+          description: achievement.badge.description,
+          tier: achievement.badge.tier,
+          svgIcon: achievement.badge.svgIcon
+        }));
+      
+      setBadges(transformedBadges);
+      console.log('✅ Loaded badges:', transformedBadges.length);
+    } catch (error) {
+      console.error('Failed to load badges:', error);
+      setBadges([]);
+    }
+  };
+
   // Check if current user owns this activity
   const isOwnActivity = currentUserGoogleId && activity.userGoogleId === currentUserGoogleId;
+  
+  // Check if activity has a photo
+  const hasPhoto = !!(activity.photo?.data);
 
   const handleShare = async () => {
     console.log('🔵 Share button pressed! Activity ID:', activity._id);
@@ -53,15 +100,33 @@ export default function ActivityDetailScreen({ activity, onBack }: ActivityDetai
       Alert.alert('Error', 'Cannot share this activity');
       return;
     }
+    
+    // Smart default selection: if no photo but has badges, default to first badge
+    if (!hasPhoto && badges.length > 0) {
+      setSelectedBadgeId(badges[0].badgeId);
+    } else {
+      setSelectedBadgeId(null); // Default to activity card
+    }
+    
+    // If there are badges, show selection modal
+    if (badges.length > 0) {
+      setShowShareOptions(true);
+    } else {
+      // No badges, share activity image directly
+      await shareActivity(null);
+    }
+  };
 
-    console.log('🟢 Starting share process...');
+  const shareActivity = async (badgeId: string | null) => {
+    console.log('🟢 Starting share process...', badgeId ? `with badge: ${badgeId}` : 'with activity image');
     try {
       setIsSharing(true);
       console.log('📤 Calling shareService...');
       
       const result = await shareService.shareActivity({
-        activityId: activity._id,
-        activityName: activity.name
+        activityId: activity._id!,
+        activityName: activity.name,
+        badgeId: badgeId || undefined
       });
 
       console.log('✅ Share result:', result);
@@ -70,6 +135,10 @@ export default function ActivityDetailScreen({ activity, onBack }: ActivityDetai
         console.log('⚠️ Share failed:', result.error);
         Alert.alert('Share Failed', result.error || 'Unable to share activity');
       }
+      
+      // Close modal on success
+      setShowShareOptions(false);
+      setSelectedBadgeId(null);
     } catch (error: any) {
       console.error('💥 Share error:', error);
       Alert.alert('Share Failed', error.message || 'Unable to share activity');
@@ -241,6 +310,89 @@ export default function ActivityDetailScreen({ activity, onBack }: ActivityDetai
           </View>
         )}
       </ScrollView>
+
+      {/* Share Options Modal */}
+      <Modal
+        visible={showShareOptions}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowShareOptions(false)}
+      >
+        <Pressable 
+          style={styles.modalOverlay}
+          onPress={() => setShowShareOptions(false)}
+        >
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Share Activity</Text>
+              <TouchableOpacity onPress={() => setShowShareOptions(false)}>
+                <Text style={styles.modalClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalScroll}>
+              <Text style={styles.modalSubtitle}>What would you like to share?</Text>
+
+              {/* Activity Image Option */}
+              <TouchableOpacity
+                style={[
+                  styles.shareOption,
+                  selectedBadgeId === null && styles.shareOptionSelected
+                ]}
+                onPress={() => setSelectedBadgeId(null)}
+              >
+                <View style={styles.shareOptionIcon}>
+                  <Text style={styles.shareOptionEmoji}>📸</Text>
+                </View>
+                <View style={styles.shareOptionText}>
+                  <Text style={styles.shareOptionTitle}>Activity Card</Text>
+                  <Text style={styles.shareOptionDescription}>
+                    Share with activity details{hasPhoto ? ' and photo' : ''}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Badge Options */}
+              {badges.map((badge) => (
+                <TouchableOpacity
+                  key={badge.badgeId}
+                  style={[
+                    styles.shareOption,
+                    selectedBadgeId === badge.badgeId && styles.shareOptionSelected
+                  ]}
+                  onPress={() => setSelectedBadgeId(badge.badgeId)}
+                >
+                  <View style={styles.shareOptionIcon}>
+                    <Image
+                      source={{ uri: `${api.defaults.baseURL}/badges/${badge.badgeId}/icon` }}
+                      style={styles.badgeIconImage}
+                      resizeMode="contain"
+                    />
+                  </View>
+                  <View style={styles.shareOptionText}>
+                    <Text style={styles.shareOptionTitle}>{badge.name}</Text>
+                    <Text style={styles.shareOptionDescription}>{badge.description}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.shareActionButton}
+                onPress={() => shareActivity(selectedBadgeId)}
+                disabled={isSharing}
+              >
+                {isSharing ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Text style={styles.shareActionButtonText}>Share</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -357,5 +509,105 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#374151',
     lineHeight: 20,
+  },
+  // Share Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  modalClose: {
+    fontSize: 24,
+    color: '#9ca3af',
+    fontWeight: '600',
+  },
+  modalScroll: {
+    maxHeight: '70%',
+  },
+  modalSubtitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    padding: 20,
+    paddingBottom: 12,
+  },
+  shareOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    backgroundColor: '#f9fafb',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  shareOptionSelected: {
+    borderColor: '#0ea5e9',
+    backgroundColor: '#eff6ff',
+  },
+  shareOptionIcon: {
+    width: 56,
+    height: 56,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  shareOptionEmoji: {
+    fontSize: 32,
+  },
+  badgeIconImage: {
+    width: 48,
+    height: 48,
+  },
+  shareOptionText: {
+    flex: 1,
+  },
+  shareOptionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 4,
+  },
+  shareOptionDescription: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  modalActions: {
+    padding: 20,
+    paddingTop: 12,
+  },
+  shareActionButton: {
+    backgroundColor: '#0ea5e9',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  shareActionButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

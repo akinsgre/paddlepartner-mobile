@@ -2,10 +2,25 @@
  * Environment configuration for Paddle Partner Mobile
  */
 
+import { Platform } from 'react-native'
+
+// Get environment from EXPO_PUBLIC_API_ENV or default to 'production'
+const API_ENV = process.env.EXPO_PUBLIC_API_ENV || 'production'
+
+// API URLs for different environments
+const API_URLS = {
+  local: Platform.select({
+    android: 'http://10.0.2.2:3001/api', // Android emulator
+    ios: 'http://localhost:3001/api',     // iOS simulator
+    default: 'http://localhost:3001/api', // Fallback
+  }),
+  production: 'https://ww3mmdu9gs.us-east-2.awsapprunner.com/api',
+}
+
 export const ENV = {
   // API Configuration
-  // Always use production backend for OAuth (Google requires public domain)
-  API_BASE_URL: 'https://ww3mmdu9gs.us-east-2.awsapprunner.com/api',
+  API_BASE_URL: API_URLS[API_ENV as keyof typeof API_URLS] || API_URLS.production,
+  API_ENV, // Expose current environment
 
   // OAuth Configuration
   GOOGLE_CLIENT_ID: '79587302091-o7k04lglgsmbmscugvbnmbg7laeoqhqo.apps.googleusercontent.com',

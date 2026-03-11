@@ -17,21 +17,9 @@ interface Coordinates {
   longitude: number;
 }
 
-interface WaterBodySelection {
-  source: string;
-  sharedWaterBodyId?: string;
-  sectionId?: string;
-  sectionIndex?: number;
-  sectionName?: string;
-  name?: string;
-  type?: string;
-  osmId?: string;
-  osmData?: any;
-}
-
 interface Props {
   coordinates: Coordinates;
-  onSelect: (selection: WaterBodySelection) => void;
+  onSelect: (selection: WaterBodySearchResult) => void;
   onError?: (error: string) => void;
 }
 
@@ -85,7 +73,7 @@ export default function WaterBodySelectionList({ coordinates, onSelect, onError 
   };
 
   const selectSection = (waterBody: GroupedWaterBody, section: { sectionIndex: number; sectionId: string; sectionName: string }) => {
-    const selection: WaterBodySelection = {
+    const selection: WaterBodySearchResult = {
       source: 'shared_database',
       sharedWaterBodyId: waterBody.waterBodyId,
       sectionId: section.sectionId,
@@ -106,7 +94,7 @@ export default function WaterBodySelectionList({ coordinates, onSelect, onError 
   };
 
   const selectWaterBodyWithoutSection = (waterBody: GroupedWaterBody) => {
-    const selection: WaterBodySelection = {
+    const selection: WaterBodySearchResult = {
       source: 'shared_database',
       sharedWaterBodyId: waterBody.waterBodyId,
       name: waterBody.name,
@@ -117,7 +105,7 @@ export default function WaterBodySelectionList({ coordinates, onSelect, onError 
   };
 
   const selectOSMWaterBody = (candidate: WaterBodySearchResult) => {
-    const selection: WaterBodySelection = {
+    const selection: WaterBodySearchResult = {
       source: 'osm',
       osmId: candidate.osmId,
       osmData: candidate.osmData,

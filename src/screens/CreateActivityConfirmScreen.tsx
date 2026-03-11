@@ -19,21 +19,10 @@ import { activityService, paddleTypeService } from '../services';
 import api from '../services/api';
 import ENV from '../config/environment';
 import type { PaddleType } from '../types';
-
-interface WaterBodySelection {
-  source: string;
-  sharedWaterBodyId?: string;
-  sectionId?: string;
-  sectionIndex?: number;
-  sectionName?: string;
-  name?: string;
-  type?: string;
-  osmId?: string;
-  osmData?: any;
-}
+import type { WaterBodySearchResult } from '../services/waterBodyService';
 
 interface CreateActivityConfirmScreenProps {
-  selectedWaterBody: WaterBodySelection;
+  selectedWaterBody: WaterBodySearchResult;
   location: { latitude: number; longitude: number };
   onBack: () => void;
   onActivityCreated: () => void;
@@ -199,9 +188,11 @@ export default function CreateActivityConfirmScreen({
         return;
       }
       
-      console.log(`✅ Final size: ${(bestResult.size / 1024 / 1024).toFixed(2)}MB`);
-      setPhotoUri(bestResult.uri);
-      setPhotoData(bestResult.base64);
+      // Extract non-null result for type safety
+      const { uri: compressedUri, base64: compressedBase64, size: compressedSize } = bestResult;
+      console.log(`✅ Final size: ${(compressedSize / 1024 / 1024).toFixed(2)}MB`);
+      setPhotoUri(compressedUri);
+      setPhotoData(compressedBase64);
       
     } catch (error) {
       console.error('Error compressing image:', error);

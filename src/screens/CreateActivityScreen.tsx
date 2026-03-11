@@ -11,22 +11,11 @@ import {
 } from 'react-native';
 import * as Location from 'expo-location';
 import WaterBodySelectionList from '../components/WaterBodySelectionList';
-
-interface WaterBodySelection {
-  source: string;
-  sharedWaterBodyId?: string;
-  sectionId?: string;
-  sectionIndex?: number;
-  sectionName?: string;
-  name?: string;
-  type?: string;
-  osmId?: string;
-  osmData?: any;
-}
+import type { WaterBodySearchResult } from '../services/waterBodyService';
 
 interface CreateActivityScreenProps {
   onContinue: (
-    waterBodySelection: WaterBodySelection,
+    waterBodySelection: WaterBodySearchResult,
     location: { latitude: number; longitude: number }
   ) => void;
   onOpenMapPicker: (currentLocation: { latitude: number; longitude: number }) => void;
@@ -37,7 +26,7 @@ interface CreateActivityScreenProps {
 export default function CreateActivityScreen({ onContinue, onOpenMapPicker, onCancel, mapOverrideLocation: externalMapOverride }: CreateActivityScreenProps) {
   const [loadingLocation, setLoadingLocation] = useState(true);
   const [gpsLocation, setGpsLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [selectedWaterBody, setSelectedWaterBody] = useState<WaterBodySelection | null>(null);
+  const [selectedWaterBody, setSelectedWaterBody] = useState<WaterBodySearchResult | null>(null);
 
   // Use external map override from parent if provided, otherwise GPS
   const location = externalMapOverride || gpsLocation;
@@ -100,7 +89,7 @@ export default function CreateActivityScreen({ onContinue, onOpenMapPicker, onCa
     }
   };
 
-  const handleWaterBodySelect = (selection: WaterBodySelection) => {
+  const handleWaterBodySelect = (selection: WaterBodySearchResult) => {
     console.log('🎯 CreateActivityScreen.handleWaterBodySelect:', {
       sectionId: selection.sectionId,
       sectionName: selection.sectionName,

@@ -13,6 +13,7 @@ const TOKEN_KEY = '@paddlepartner:token';
 export interface ShareActivityOptions {
   activityId: string;
   activityName?: string;
+  badgeId?: string; // Optional badge ID to share instead of activity image
 }
 
 export const shareService = {
@@ -47,7 +48,13 @@ export const shareService = {
       
       // Download image directly to file using FileSystem
       const fileUri = FileSystem.cacheDirectory + `share-${options.activityId}.png`;
-      const downloadUrl = `${ENV.API_BASE_URL}/activities/${options.activityId}/share-image`;
+      let downloadUrl = `${ENV.API_BASE_URL}/activities/${options.activityId}/share-image`;
+      
+      // Add badgeId query parameter if sharing a badge
+      if (options.badgeId) {
+        downloadUrl += `?badgeId=${options.badgeId}`;
+        console.log('🏆 Sharing badge:', options.badgeId);
+      }
       
       console.log('📍 Download URL:', downloadUrl);
       console.log('⬇️ Saving to:', fileUri);
